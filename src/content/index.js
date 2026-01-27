@@ -1,24 +1,42 @@
 /**
  * Content Script 入口
  * 负责：
- * 1. 调用 API 获取对话数据
- * 2. 解析 mapping 树
- * 3. 提取分支结构
- * 4. 发送数据到 Service Worker
+ * 1. 加载用户配置的 token
+ * 2. 调用 API 获取对话数据
+ * 3. 解析 mapping 树
+ * 4. 提取分支结构
+ * 5. 发送数据到 Service Worker
+ * 6. 监听 URL 变化（对话切换）
+ * 7. 监听 DOM 变化（新消息）
+ * 8. 增量更新 graph tree
  */
 
 import { MESSAGE_TYPES, CONFIG } from '../shared/constants.js';
 import { log, extractConversationId, delay } from '../shared/utils.js';
+import { loadToken, hasToken } from './auth/token-manager.js';
 import { fetchConversationWithRetry } from './api/conversation.js';
 import { parseMapping, getNodeStatistics } from './parser/mapping-parser.js';
 import { extractBranches, buildRounds, analyzeBranchStructure } from './parser/branch-extractor.js';
 import { isConversationPage, waitForElement } from './utils/dom-helper.js';
+import { createURLObserver } from './observers/url-observer.js';
+import { createMessageObserver } from './observers/message-observer.js';
+import { conversationState } from './state/conversation-state.js';
+
+// 全局观察器实例
+let urlObserver = null;
+let messageObserver = null;
 
 /**
  * 主函数
  */
 async function main() {
   log('info', 'Content', 'Content script loaded');
+
+  // 检查扩展上下文是否有效
+  if (!chrome.runtime?.id) {
+    showExtensionReloadWarning();
+    return;
+  }
 
   // 检查是否在对话页面
   if (!isConversationPage()) {
@@ -38,11 +56,160 @@ async function main() {
   // 等待页面加载完成
   await waitForPageReady();
 
+  // 加载用户配置的 token
+  const tokenLoaded = await loadToken();
+
+  if (!tokenLoaded || !hasToken()) {
+    log('error', 'Content', 'No valid token found');
+    showTokenSetupPrompt();
+    return;
+  }
+
+  log('info', 'Content', 'Token loaded successfully');
+
   // 延迟执行，避免阻塞页面
   await delay(CONFIG.API_DELAY);
 
-  // 获取并处理对话数据
+  // 获取并处理当前对话数据
   await fetchAndProcessConversation(conversationId);
+
+  // 启动 URL 观察器，监听对话切换
+  startURLObserver();
+
+  // 启动消息观察器，监听新消息
+  startMessageObserver();
+}
+
+/**
+ * 启动 URL 观察器
+ * 监听用户切换对话，自动重新加载数据
+ */
+function startURLObserver() {
+  log('info', 'Content', 'Starting URL observer for conversation switching');
+
+  // 停止旧的观察器（如果存在）
+  if (urlObserver) {
+    urlObserver.stop();
+  }
+
+  urlObserver = createURLObserver(async (newConversationId, oldConversationId) => {
+    log('info', 'Content', `Conversation switched: ${oldConversationId} → ${newConversationId}`);
+
+    // 清空旧的状态
+    conversationState.clear();
+
+    // 重置消息观察器
+    if (messageObserver) {
+      messageObserver.reset();
+    }
+
+    // 等待页面更新完成
+    await delay(CONFIG.API_DELAY);
+
+    // 重新获取并处理新对话数据
+    await fetchAndProcessConversation(newConversationId);
+  });
+
+  log('info', 'Content', 'URL observer started');
+}
+
+/**
+ * 启动消息观察器
+ * 监听新消息，进行增量更新
+ */
+function startMessageObserver() {
+  log('info', 'Content', 'Starting message observer for incremental updates');
+
+  // 停止旧的观察器（如果存在）
+  if (messageObserver) {
+    messageObserver.stop();
+  }
+
+  messageObserver = createMessageObserver(async (messageData) => {
+    log('info', 'Content', `New message detected`, {
+      id: messageData.id.substring(0, 8) + '...',
+      role: messageData.role
+    });
+
+    // 处理增量消息
+    await handleIncrementalMessage(messageData);
+  });
+
+  log('info', 'Content', 'Message observer started');
+}
+
+/**
+ * 处理增量消息
+ * @param {Object} messageData - 从 DOM 提取的消息数据
+ */
+async function handleIncrementalMessage(messageData) {
+  try {
+    // 检查状态是否已初始化
+    if (!conversationState.isReady()) {
+      log('warn', 'Content', 'State not initialized, skipping incremental update');
+      return;
+    }
+
+    // 添加增量节点到状态
+    const added = conversationState.addIncrementalNode(messageData);
+
+    if (!added) {
+      log('debug', 'Content', 'Node already exists or failed to add');
+      return;
+    }
+
+    // 获取增量更新数据
+    const incrementalUpdate = conversationState.getIncrementalUpdate(messageData.id);
+
+    log('info', 'Content', 'Incremental update prepared', {
+      nodeId: messageData.id.substring(0, 8) + '...',
+      totalNodes: conversationState.getStats().totalNodes
+    });
+
+    // 发送增量更新到 background（失败不影响后续流程）
+    try {
+      await sendToBackground(MESSAGE_TYPES.CONVERSATION_INCREMENTAL_UPDATE, incrementalUpdate);
+      log('info', 'Content', '✓ Incremental update sent to background');
+    } catch (bgError) {
+      log('error', 'Content', 'Failed to send incremental update:', bgError.message);
+    }
+
+    // 输出调试信息
+    logIncrementalUpdate(messageData, conversationState.getStats());
+
+  } catch (error) {
+    log('error', 'Content', 'Failed to handle incremental message:', error);
+  }
+}
+
+/**
+ * 显示扩展重新加载警告
+ */
+function showExtensionReloadWarning() {
+  console.group('🌲 ChatGPT Graph - Extension Reloaded');
+  console.warn('⚠️ Extension context invalidated');
+  console.log('');
+  console.log('The extension was reloaded while this page was open.');
+  console.log('Please refresh this page to restore functionality.');
+  console.log('');
+  console.groupEnd();
+}
+
+/**
+ * 显示 Token 设置提示
+ */
+function showTokenSetupPrompt() {
+  console.group('🌲 ChatGPT Graph - Setup Required');
+  console.error('❌ Authentication token not configured');
+  console.log('');
+  console.log('To use this extension:');
+  console.log('1. Click the extension icon in your toolbar');
+  console.log('2. Click "Setup Token" button');
+  console.log('3. Follow the instructions to get your token');
+  console.log('4. Refresh this page');
+  console.log('');
+  console.log('Your token is stored securely on your device.');
+  console.groupEnd();
 }
 
 /**
@@ -110,22 +277,34 @@ async function fetchAndProcessConversation(conversationId) {
       analysis
     };
 
-    // 5. 发送到 Service Worker
-    await sendToBackground(MESSAGE_TYPES.CONVERSATION_LOADED, conversationData);
+    // 5. 初始化状态管理器（用于增量更新）
+    conversationState.initialize(conversationData);
+    log('info', 'Content', '✓ Conversation state initialized');
 
-    log('info', 'Content', '✓ Conversation data sent to background');
+    // 6. 发送到 Service Worker（失败不影响调试输出）
+    try {
+      await sendToBackground(MESSAGE_TYPES.CONVERSATION_LOADED, conversationData);
+      log('info', 'Content', '✓ Conversation data sent to background');
+    } catch (bgError) {
+      log('error', 'Content', 'Failed to send to background (extension may be reloading):', bgError.message);
+      // 继续执行，至少输出调试信息
+    }
 
-    // 6. 输出调试信息到控制台
+    // 7. 输出调试信息到控制台（即使 background 失败也要显示）
     logDebugInfo(conversationData);
 
   } catch (error) {
     log('error', 'Content', 'Failed to process conversation:', error);
 
-    // 发送错误消息
-    await sendToBackground(MESSAGE_TYPES.ERROR, {
-      message: error.message,
-      stack: error.stack
-    });
+    // 尝试发送错误消息（但不阻塞）
+    try {
+      await sendToBackground(MESSAGE_TYPES.ERROR, {
+        message: error.message,
+        stack: error.stack
+      });
+    } catch (bgError) {
+      log('warn', 'Content', 'Could not send error to background:', bgError.message);
+    }
   }
 }
 
@@ -133,27 +312,61 @@ async function fetchAndProcessConversation(conversationId) {
  * 发送消息到 Service Worker
  * @param {string} type - 消息类型
  * @param {Object} payload - 消息负载
+ * @param {number} retries - 重试次数
  * @returns {Promise<Object>}
  */
-async function sendToBackground(type, payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      {
-        type,
-        payload,
-        timestamp: Date.now()
-      },
-      response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else if (response && response.error) {
-          reject(new Error(response.error));
+async function sendToBackground(type, payload, retries = 3) {
+  // 检查 extension context 是否有效
+  if (!chrome.runtime?.id) {
+    log('error', 'Content', 'Extension context invalidated (extension may have been reloaded)');
+    throw new Error('Extension context invalidated. Please refresh the page.');
+  }
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          {
+            type,
+            payload,
+            timestamp: Date.now()
+          },
+          response => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else if (response && response.error) {
+              reject(new Error(response.error));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      log('debug', 'Content', `Message sent successfully on attempt ${attempt}`);
+      return response;
+
+    } catch (error) {
+      const isLastAttempt = attempt === retries;
+      const isConnectionError = error.message?.includes('Receiving end does not exist');
+
+      if (isConnectionError) {
+        log('warn', 'Content', `Background connection failed (attempt ${attempt}/${retries})`);
+
+        if (!isLastAttempt) {
+          // 等待后重试（给 background script 初始化的时间）
+          await delay(500 * attempt);
+          continue;
         } else {
-          resolve(response);
+          log('error', 'Content', 'Background script not responding. Extension may need to be reloaded.');
+          throw new Error('Background script not responding. Please reload the extension or refresh the page.');
         }
+      } else {
+        // 其他错误，直接抛出
+        throw error;
       }
-    );
-  });
+    }
+  }
 }
 
 /**
@@ -190,6 +403,34 @@ function logDebugInfo(conversationData) {
   }
 
   console.log('💾 Full Data:', conversationData);
+
+  console.groupEnd();
+}
+
+/**
+ * 输出增量更新调试信息
+ * @param {Object} messageData - 新消息数据
+ * @param {Object} stats - 对话统计信息
+ */
+function logIncrementalUpdate(messageData, stats) {
+  console.group('🆕 ChatGPT Graph - Incremental Update');
+
+  console.log('📨 New Message:', {
+    'ID': messageData.id.substring(0, 16) + '...',
+    'Role': messageData.role,
+    'Content Length': messageData.content.length,
+    'Parent': messageData.parent?.substring(0, 16) + '...' || '(none)'
+  });
+
+  console.log('📊 Updated Statistics:', {
+    'Total Nodes': stats.totalNodes,
+    'Total Rounds': stats.totalRounds,
+    'Total Branches': stats.totalBranches,
+    'Branch Points': stats.branchPoints,
+    'Incremental Nodes': stats.incrementalNodes
+  });
+
+  console.log('⚡ Update Method: DOM extraction (no API call)');
 
   console.groupEnd();
 }

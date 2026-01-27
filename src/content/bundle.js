@@ -101,7 +101,7 @@ function extractConversationId(url = window.location.pathname) {
 /**
  * 从 cookie 获取指定名称的值
  */
-function getCookie(name) {
+export function getCookie(name) {
   const cookies = document.cookie.split(';');
   for (const cookie of cookies) {
     const [cookieName, cookieValue] = cookie.trim().split('=');
@@ -628,6 +628,11 @@ async function waitForPageReady() {
   log('info', 'Content', 'Page ready');
 }
 
+/**
+ * 获取并处理对话数据
+ * @param {string} conversationId - 对话 ID
+ * @returns {Promise<void>}
+ */
 async function fetchAndProcessConversation(conversationId) {
   try {
     log('info', 'Content', 'Fetching conversation data...');
@@ -670,9 +675,13 @@ async function fetchAndProcessConversation(conversationId) {
       analysis
     };
 
-    await sendToBackground(MESSAGE_TYPES.CONVERSATION_LOADED, conversationData);
-
-    log('info', 'Content', '✓ Conversation data sent to background');
+    // 尝试发送到 background，但不阻塞成功流程
+    try {
+      await sendToBackground(MESSAGE_TYPES.CONVERSATION_LOADED, conversationData);
+      log('info', 'Content', '✓ Conversation data sent to background');
+    } catch (bgError) {
+      log('warn', 'Content', 'Failed to send to background, but processing succeeded:', bgError.message);
+    }
 
     logDebugInfo(conversationData);
 
@@ -706,33 +715,62 @@ async function fetchAndProcessConversation(conversationId) {
       console.log('');
       console.log('Error details:', error.message);
       console.groupEnd();
+    } else if (error.message && error.message.includes('401')) {
+      console.group('🌲 ChatGPT Graph - Error');
+      console.error('❌ Token Invalid or Expired');
+      console.log('');
+      console.log('Your authentication token is invalid or has expired.');
+      console.log('');
+      console.log('Solutions:');
+      console.log('1. Click the extension icon in your toolbar');
+      console.log('2. Click "Update Token" or "Change Token"');
+      console.log('3. Follow the instructions to get a new token');
+      console.log('4. Refresh this page');
+      console.groupEnd();
     }
 
-    await sendToBackground(MESSAGE_TYPES.ERROR, {
-      message: error.message,
-      stack: error.stack
-    });
+    // 尝试发送错误到 background，但不阻塞
+    try {
+      await sendToBackground(MESSAGE_TYPES.ERROR, {
+        message: error.message,
+        stack: error.stack
+      });
+    } catch (bgError) {
+      log('warn', 'Content', 'Failed to send error to background:', bgError.message);
+    }
   }
 }
 
 async function sendToBackground(type, payload) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      {
-        type,
-        payload,
-        timestamp: Date.now()
-      },
-      response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else if (response && response.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type,
+          payload,
+          timestamp: Date.now()
+        },
+        response => {
+          if (chrome.runtime.lastError) {
+            // 如果是连接错误，只记录警告而不是抛出错误
+            if (chrome.runtime.lastError.message.includes('Receiving end does not exist')) {
+              log('warn', 'Content', 'Background script not ready, message not sent:', type);
+              resolve({ success: false, error: 'Background not ready' });
+            } else {
+              log('error', 'Content', 'Message send error:', chrome.runtime.lastError.message);
+              reject(chrome.runtime.lastError);
+            }
+          } else if (response && response.error) {
+            reject(new Error(response.error));
+          } else {
+            resolve(response || { success: true });
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      log('error', 'Content', 'Failed to send message:', error);
+      reject(error);
+    }
   });
 }
 

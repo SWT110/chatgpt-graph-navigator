@@ -4,9 +4,11 @@
   "description": "Visualize ChatGPT conversations as navigable knowledge graphs in a Chrome extension.",
   "type": "module",
   "scripts": {
-    "dev": "echo 'Load unpacked extension from root directory'",
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "dev": "npm run build:watch",
     "lint": "eslint src/",
-    "format": "prettier --write \"src/**/*.{js,json,css,html}\""
+    "format": "prettier --write \"src/**/*.{js,jsx,json,css,html}\""
   },
   "keywords": [
     "chatgpt",
@@ -16,7 +18,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@xyflow/react": "^12.0.0",
+    "dagre": "^0.8.5"
+  },
   "devDependencies": {
+    "esbuild": "^0.20.0",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0"
   }

@@ -41,6 +41,9 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.CONVERSATION_LOADED:
       return await handleConversationLoaded(payload);
 
+    case MESSAGE_TYPES.CONVERSATION_INCREMENTAL_UPDATE:
+      return await handleIncrementalUpdate(payload);
+
     case MESSAGE_TYPES.GET_CONVERSATION:
       return await handleGetConversation(payload);
 
@@ -83,6 +86,68 @@ async function handleConversationLoaded(conversationData) {
     };
   } catch (error) {
     console.error('[Background] Failed to save conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理增量更新
+ * @param {Object} updateData - 增量更新数据
+ * @returns {Promise<Object>}
+ */
+async function handleIncrementalUpdate(updateData) {
+  console.log('[Background] Handling INCREMENTAL_UPDATE:', {
+    conversationId: updateData.conversationId,
+    newNodeId: updateData.newNode?.id
+  });
+
+  try {
+    // 获取现有对话
+    const conversation = await db.getConversation(updateData.conversationId);
+
+    if (!conversation) {
+      console.warn('[Background] Conversation not found, saving as new');
+      // 如果对话不存在，作为新对话保存
+      await db.saveFullConversation({
+        id: updateData.conversationId,
+        nodes: updateData.updatedNodes,
+        rounds: updateData.updatedRounds,
+        branches: updateData.updatedBranches,
+        analysis: updateData.updatedAnalysis,
+        updateTime: updateData.timestamp
+      });
+    } else {
+      // 更新现有对话
+      await db.updateConversation(updateData.conversationId, {
+        nodes: updateData.updatedNodes,
+        rounds: updateData.updatedRounds,
+        branches: updateData.updatedBranches,
+        analysis: updateData.updatedAnalysis,
+        updateTime: updateData.timestamp,
+        lastIncrementalUpdate: updateData.timestamp
+      });
+    }
+
+    // 通知 Side Panel 有新消息
+    await notifySidePanel(MESSAGE_TYPES.UPDATE_NOTIFICATION, {
+      type: 'new_message',
+      conversationId: updateData.conversationId,
+      newNode: updateData.newNode,
+      stats: {
+        nodes: updateData.updatedNodes.length,
+        rounds: updateData.updatedRounds.length,
+        branches: updateData.updatedBranches.length
+      }
+    });
+
+    return {
+      message: 'Incremental update saved successfully',
+      conversationId: updateData.conversationId,
+      newNodeId: updateData.newNode?.id
+    };
+
+  } catch (error) {
+    console.error('[Background] Failed to save incremental update:', error);
     throw error;
   }
 }

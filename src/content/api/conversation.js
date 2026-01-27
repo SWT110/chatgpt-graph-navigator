@@ -4,6 +4,7 @@
 
 import { API_ENDPOINTS } from '../../shared/constants.js';
 import { log, retry } from '../../shared/utils.js';
+import { buildAuthHeaders, clearAuthCache } from '../auth/token-manager.js';
 
 /**
  * 获取对话完整数据
@@ -11,30 +12,50 @@ import { log, retry } from '../../shared/utils.js';
  * @returns {Promise<Object>} 对话数据（包含 mapping）
  * @throws {Error} API 调用失败
  */
-export async function fetchConversation(conversationId) {
-  log('info', 'API', `Fetching conversation: ${conversationId}`);
+async function fetchConversation(conversationId, isRetry = false) {
+  log('info', 'API', `Fetching conversation: ${conversationId}${isRetry ? ' (retry)' : ''}`);
 
   try {
     const response = await fetch(
       `${API_ENDPOINTS.CONVERSATION}/${conversationId}`,
       {
         method: 'GET',
-        credentials: 'include', // 重要：携带认证 Cookie
-        headers: {
-          'accept': '*/*',
-          'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'oai-language': 'zh-CN',
-          'sec-fetch-dest': 'empty',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-site': 'same-origin'
-        }
+        credentials: 'include',
+        headers: buildAuthHeaders()
       }
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      log('error', 'API', `HTTP ${response.status}:`, errorText);
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      let errorDetail = '';
+      let errorData = null;
+
+      try {
+        errorData = await response.json();
+        errorDetail = JSON.stringify(errorData);
+      } catch (e) {
+        errorDetail = await response.text();
+      }
+
+      if (response.status === 401) {
+        log('warn', 'API', 'Authentication failed (401), clearing auth cache');
+        clearAuthCache();
+
+        if (!isRetry) {
+          log('info', 'API', 'Retrying with fresh auth info...');
+          await delay(500);
+          return await fetchConversation(conversationId, true);
+        } else {
+          throw new Error(`Authentication failed (401). Please ensure you are logged into ChatGPT and refresh the page.`);
+        }
+      }
+
+      if (response.status === 404 && errorData?.detail?.code === 'conversation_not_found') {
+        log('warn', 'API', `Conversation not found: ${conversationId}`);
+        throw new Error(`Conversation not found (404). Please visit a valid ChatGPT conversation page.`);
+      }
+
+      log('error', 'API', `HTTP ${response.status}:`, errorDetail);
+      throw new Error(`API Error: ${response.status} - ${errorDetail}`);
     }
 
     const data = await response.json();

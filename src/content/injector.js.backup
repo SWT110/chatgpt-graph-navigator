@@ -47,7 +47,7 @@ let cachedAuthInfo = null;
 
 /**
  * 从 chrome.storage 加载已保存的 token
- */
+ */loadToken
 async function loadStoredToken() {
   try {
     const result = await chrome.storage.local.get(['accessToken', 'tokenTimestamp']);
