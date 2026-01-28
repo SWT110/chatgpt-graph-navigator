@@ -56,6 +56,7 @@ function GraphContent({
   const prevQaTreeRef = useRef(null);
   const prevSelectedPathRef = useRef(null);
   const prevCurrentNodeIdRef = useRef(null);
+  const prevContainerHeightRef = useRef(0);
 
   // 展开/折叠回答的处理函数
   const handleExpandAnswer = useCallback((nodeId) => {
@@ -72,7 +73,9 @@ function GraphContent({
 
   // 当容器高度变化时，重新适应视图
   useEffect(() => {
-    if (containerHeight > 0 && nodes.length > 0) {
+    // 只在容器高度真正变化时才 fitView
+    if (containerHeight > 0 && nodes.length > 0 && prevContainerHeightRef.current !== containerHeight) {
+      prevContainerHeightRef.current = containerHeight;
       setTimeout(() => {
         fitView({ padding: 0.2, duration: 300 });
       }, 100);
