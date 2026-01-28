@@ -162,6 +162,7 @@ function GraphContent({
 
   // 处理节点点击
   const handleNodeClick = useCallback((event, node) => {
+    console.log('[Graph] Node clicked:', node.id, node.data?.nodeType);
     // 忽略起始节点的点击
     if (node.data?.nodeType === 'start') return;
     onNodeClick?.(node.data.nodeId, node.data);
@@ -201,6 +202,7 @@ function GraphContent({
       onNodeContextMenu={handleNodeContextMenu}
       nodeTypes={nodeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
+      nodeDragThreshold={5}
       fitView
       fitViewOptions={{ padding: 0.2 }}
       minZoom={0.1}

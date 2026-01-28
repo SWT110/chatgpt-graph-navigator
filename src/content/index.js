@@ -147,23 +147,22 @@ function scrollToMessage(messageId) {
  * @param {HTMLElement} element - 要高亮的元素
  */
 function highlightElement(element) {
-  // 保存原始样式
-  const originalOutline = element.style.outline;
-  const originalTransition = element.style.transition;
-
   // 添加高亮样式
-  element.style.transition = 'outline 0.3s ease';
+  element.style.transition = 'outline 0.3s ease, outline-offset 0.3s ease';
   element.style.outline = '3px solid #3b82f6';
+  element.style.outlineOffset = '2px';
 
   // 短暂延迟后移除高亮
   setTimeout(() => {
     element.style.outline = '3px solid transparent';
 
     setTimeout(() => {
-      element.style.outline = originalOutline;
-      element.style.transition = originalTransition;
+      // 完全移除内联样式，恢复原状
+      element.style.removeProperty('outline');
+      element.style.removeProperty('outline-offset');
+      element.style.removeProperty('transition');
     }, 300);
-  }, 1000);
+  }, 1500);
 }
 
 /**

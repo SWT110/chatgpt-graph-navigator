@@ -52,6 +52,11 @@ function QANode({ id, data, selected }) {
   const displayText = isContentExpanded ? truncate(content, 300) : truncate(preview, 60);
   const hasMore = content && content.length > 60;
 
+  // 阻止按钮事件冒泡到节点（防止选中节点触发导航）
+  const stopEvent = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
+
   const toggleContentExpand = useCallback((e) => {
     e.stopPropagation();
     setIsContentExpanded(prev => !prev);
@@ -101,6 +106,7 @@ function QANode({ id, data, selected }) {
           <button
             className={`qa-node-expand-answer-btn ${isExpanded ? 'expanded' : ''}`}
             onClick={toggleAnswerExpand}
+            onMouseDown={stopEvent}
             title={isExpanded ? 'Hide answer' : 'Show answer'}
           >
             {isExpanded ? '−' : '+'}
@@ -110,6 +116,7 @@ function QANode({ id, data, selected }) {
           <button
             className="qa-node-expand-btn"
             onClick={toggleContentExpand}
+            onMouseDown={stopEvent}
             title={isContentExpanded ? 'Show less' : 'Show more'}
           >
             {isContentExpanded ? '−' : '⋯'}

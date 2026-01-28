@@ -6,6 +6,7 @@ import ConversationGraph from './components/ConversationGraph';
 import Header from './components/Header';
 import { useConversationData } from './hooks/useConversationData';
 import { useQATree, useBranchChangeListener } from './hooks/useQATree';
+import { MESSAGE_TYPES } from '../shared/constants.js';
 
 function App() {
   const {
@@ -55,14 +56,18 @@ function App() {
     // 更新 QA 树选中路径
     selectNode(nodeId);
 
-    // 发送消息到 content script 进行定位
+    // 通过 background script 转发消息到 content script 进行定位
     const messageId = nodeData?.messageId || nodeId;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: 'SCROLL_TO_MESSAGE',
-          payload: { messageId }
-        });
+    console.log('[SidePanel] Sending SCROLL_TO_MESSAGE for:', messageId);
+
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
+      payload: { messageId }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[SidePanel] sendMessage error:', chrome.runtime.lastError);
+      } else {
+        console.log('[SidePanel] sendMessage response:', response);
       }
     });
   }, [setCurrentNodeId, selectNode]);

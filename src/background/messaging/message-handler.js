@@ -50,6 +50,9 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.GET_ALL_CONVERSATIONS:
       return await handleGetAllConversations();
 
+    case MESSAGE_TYPES.SCROLL_TO_MESSAGE:
+      return await handleScrollToMessage(payload);
+
     case MESSAGE_TYPES.ERROR:
       return await handleError(payload, sender);
 
@@ -239,6 +242,60 @@ async function handleError(errorData, sender) {
   // TODO: 可以在这里添加错误上报逻辑
 
   return { acknowledged: true };
+}
+
+/**
+ * 处理滚动到消息请求（从 sidepanel 转发到 content script）
+ * @param {Object} payload - 请求数据
+ * @returns {Promise<Object>}
+ */
+async function handleScrollToMessage(payload) {
+  const { messageId } = payload;
+  console.log('[Background] Forwarding SCROLL_TO_MESSAGE:', messageId);
+
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab?.id) {
+      throw new Error('No active tab found');
+    }
+
+    // 检查是否是 ChatGPT 页面
+    if (!tab.url?.includes('chatgpt.com') && !tab.url?.includes('chat.openai.com')) {
+      throw new Error('Active tab is not a ChatGPT page');
+    }
+
+    // 尝试转发消息到 content script
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
+        payload: { messageId }
+      });
+      return response;
+    } catch (sendError) {
+      // Content script 可能未加载，尝试注入
+      console.log('[Background] Content script not responding, injecting...');
+
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['dist/content.js']
+      });
+
+      // 等待 content script 初始化
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 重试发送消息
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
+        payload: { messageId }
+      });
+      return response;
+    }
+  } catch (error) {
+    console.error('[Background] Failed to forward SCROLL_TO_MESSAGE:', error);
+    throw error;
+  }
 }
 
 /**
