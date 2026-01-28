@@ -17,11 +17,13 @@ import {
 // React Flow 的 CSS 在 src/sidepanel/styles/index.css 中通过 @import 引入
 
 import QANode from './QANode';
+import StartNode from './StartNode';
 import { buildAndLayoutQATree } from '../utils/qaTreeLayout';
 
 // 自定义节点类型
 const nodeTypes = {
-  qaNode: QANode
+  qaNode: QANode,
+  startNode: StartNode
 };
 
 // 边的默认样式
@@ -48,6 +50,25 @@ function GraphContent({
   const { fitView, setCenter } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [expandedQNodes, setExpandedQNodes] = useState(new Set());
+
+  // 用于追踪是否应该 fitView（只在数据变化时，不在展开/折叠时）
+  const prevQaTreeRef = useRef(null);
+  const prevSelectedPathRef = useRef(null);
+  const prevCurrentNodeIdRef = useRef(null);
+
+  // 展开/折叠回答的处理函数
+  const handleExpandAnswer = useCallback((nodeId) => {
+    setExpandedQNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, []);
 
   // 当容器高度变化时，重新适应视图
   useEffect(() => {
@@ -58,7 +79,7 @@ function GraphContent({
     }
   }, [containerHeight, fitView, nodes.length]);
 
-  // 当 QA 树或选中路径变化时，更新图谱
+  // 当 QA 树、选中路径或展开状态变化时，更新图谱
   useEffect(() => {
     if (!qaTree || !qaTree.root || qaTree.root.questions.length === 0) {
       setNodes([]);
@@ -66,36 +87,59 @@ function GraphContent({
       return;
     }
 
+    // 检测是否是数据变化（而非仅展开状态变化）
+    const isDataChange = prevQaTreeRef.current !== qaTree || prevSelectedPathRef.current !== selectedPath;
+    prevQaTreeRef.current = qaTree;
+    prevSelectedPathRef.current = selectedPath;
+
     console.log('[Graph] Building from QA tree...',
       'Q:', qaTree.qNodeMap?.size || 0,
-      'A:', qaTree.aNodeMap?.size || 0
+      'A:', qaTree.aNodeMap?.size || 0,
+      'Expanded:', expandedQNodes.size,
+      'DataChange:', isDataChange
     );
 
     // 从 QA 树构建并布局
     const { nodes: layoutedNodes, edges: layoutedEdges } = buildAndLayoutQATree(
       qaTree,
       selectedPath,
-      'TB'
+      'TB',
+      expandedQNodes
     );
 
+    // 为节点注入展开回调
+    const nodesWithHandlers = layoutedNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onExpandAnswer: handleExpandAnswer
+      }
+    }));
+
     console.log('[Graph] Layout complete:',
-      layoutedNodes.length, 'nodes,',
+      nodesWithHandlers.length, 'nodes,',
       layoutedEdges.length, 'edges'
     );
 
-    setNodes(layoutedNodes);
+    setNodes(nodesWithHandlers);
     setEdges(layoutedEdges);
 
-    // 适应视图
-    setTimeout(() => {
-      fitView({ padding: 0.2, duration: 300 });
-    }, 100);
+    // 只在数据变化时适应视图，展开/折叠时保持当前缩放
+    if (isDataChange) {
+      setTimeout(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      }, 100);
+    }
 
-  }, [qaTree, selectedPath, setNodes, setEdges, fitView]);
+  }, [qaTree, selectedPath, expandedQNodes, setNodes, setEdges, fitView, handleExpandAnswer]);
 
-  // 当前节点变化时，定位到该节点
+  // 当前节点变化时，定位到该节点（只在 currentNodeId 真正变化时）
   useEffect(() => {
     if (!currentNodeId || nodes.length === 0) return;
+
+    // 只在 currentNodeId 真正变化时才定位
+    if (prevCurrentNodeIdRef.current === currentNodeId) return;
+    prevCurrentNodeIdRef.current = currentNodeId;
 
     // 尝试找到对应的节点（可能是 q-xxx 或 a-xxx 格式）
     let targetNode = nodes.find(n =>
@@ -115,21 +159,28 @@ function GraphContent({
 
   // 处理节点点击
   const handleNodeClick = useCallback((event, node) => {
+    // 忽略起始节点的点击
+    if (node.data?.nodeType === 'start') return;
     onNodeClick?.(node.data.nodeId, node.data);
   }, [onNodeClick]);
 
   // 处理节点双击
   const handleNodeDoubleClick = useCallback((event, node) => {
+    if (node.data?.nodeType === 'start') return;
     onNodeDoubleClick?.(node.data.nodeId, node.data);
   }, [onNodeDoubleClick]);
 
   // 处理节点右键
   const handleNodeContextMenu = useCallback((event, node) => {
+    if (node.data?.nodeType === 'start') return;
     onNodeContextMenu?.(event, node.data.nodeId, node.data);
   }, [onNodeContextMenu]);
 
   // MiniMap 节点颜色
   const nodeColor = useCallback((node) => {
+    if (node.data?.nodeType === 'start') {
+      return '#94a3b8';
+    }
     if (node.data?.isSelected) {
       return node.data?.nodeType === 'question' ? '#3b82f6' : '#22c55e';
     }

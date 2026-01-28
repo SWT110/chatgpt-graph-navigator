@@ -20,7 +20,7 @@ function truncate(text, maxLength) {
  */
 function QANode({ id, data, selected }) {
   const [isHovered, setIsHovered] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   const {
     nodeType,      // 'question' | 'answer'
@@ -31,7 +31,12 @@ function QANode({ id, data, selected }) {
     isSelected,    // 是否在选中路径上
     childCount,
     colors,
-    messageId
+    messageId,
+    // 折叠相关（只有 Q 节点有）
+    collapsedAnswer,
+    canExpand,
+    isExpanded,
+    onExpandAnswer
   } = data;
 
   const isQuestion = nodeType === 'question';
@@ -39,18 +44,25 @@ function QANode({ id, data, selected }) {
   const label = isQuestion ? 'Q' : 'A';
 
   // 根据状态决定样式
-  const bgColor = isSelected ? colors.bg : colors.bg;
-  const borderColor = selected ? '#1d4ed8' : (isSelected ? colors.border : colors.border);
+  const bgColor = colors.bg;
+  const borderColor = selected ? '#1d4ed8' : colors.border;
   const borderWidth = selected ? 3 : (isSelected ? 2 : 1);
 
   // 显示的文本
-  const displayText = isExpanded ? truncate(content, 300) : truncate(preview, 60);
+  const displayText = isContentExpanded ? truncate(content, 300) : truncate(preview, 60);
   const hasMore = content && content.length > 60;
 
-  const toggleExpand = useCallback((e) => {
+  const toggleContentExpand = useCallback((e) => {
     e.stopPropagation();
-    setIsExpanded(prev => !prev);
+    setIsContentExpanded(prev => !prev);
   }, []);
+
+  const toggleAnswerExpand = useCallback((e) => {
+    e.stopPropagation();
+    if (onExpandAnswer) {
+      onExpandAnswer(nodeId);
+    }
+  }, [onExpandAnswer, nodeId]);
 
   return (
     <div
@@ -84,18 +96,28 @@ function QANode({ id, data, selected }) {
             🌿 {childCount}
           </span>
         )}
-        {hasMore && (
+        {/* 展开/折叠回答按钮（只在有折叠回答时显示） */}
+        {canExpand && (
           <button
-            className="qa-node-expand-btn"
-            onClick={toggleExpand}
-            title={isExpanded ? 'Show less' : 'Show more'}
+            className={`qa-node-expand-answer-btn ${isExpanded ? 'expanded' : ''}`}
+            onClick={toggleAnswerExpand}
+            title={isExpanded ? 'Hide answer' : 'Show answer'}
           >
             {isExpanded ? '−' : '+'}
           </button>
         )}
+        {hasMore && (
+          <button
+            className="qa-node-expand-btn"
+            onClick={toggleContentExpand}
+            title={isContentExpanded ? 'Show less' : 'Show more'}
+          >
+            {isContentExpanded ? '−' : '⋯'}
+          </button>
+        )}
       </div>
 
-      {/* 节点内容 */}
+      {/* Q 节点内容 */}
       <div className="qa-node-content">
         <p className="qa-node-text" title={content}>
           {displayText || <em className="qa-node-empty">(empty)</em>}

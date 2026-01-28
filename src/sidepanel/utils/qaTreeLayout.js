@@ -9,6 +9,8 @@ import dagre from 'dagre';
  */
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 100;
+const START_NODE_WIDTH = 120;
+const START_NODE_HEIGHT = 40;
 
 /**
  * 颜色配置
@@ -26,6 +28,10 @@ const COLORS = {
     selectedBg: '#bbf7d0',
     selectedBorder: '#16a34a'
   },
+  start: {
+    bg: '#f1f5f9',
+    border: '#94a3b8'
+  },
   edge: {
     normal: '#94a3b8',
     selected: '#3b82f6'
@@ -37,16 +43,30 @@ const COLORS = {
  *
  * @param {Object} qaTree - QA 树对象
  * @param {Set<string>} selectedPath - 选中路径上的节点 ID
+ * @param {Set<string>} expandedQNodes - 已展开的 Q 节点 ID（用于显示单个 A 节点）
  * @returns {{ nodes: Array, edges: Array }}
  */
-export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
+export function buildFlowFromQATree(qaTree, selectedPath = new Set(), expandedQNodes = new Set()) {
   if (!qaTree || !qaTree.root || qaTree.root.questions.length === 0) {
     return { nodes: [], edges: [] };
   }
 
   const flowNodes = [];
   const flowEdges = [];
-  let nodeIndex = 0;
+  const hasMultipleRoots = qaTree.root.questions.length > 1;
+
+  // 如果有多个根节点，添加一个起始节点
+  if (hasMultipleRoots) {
+    flowNodes.push({
+      id: 'start-node',
+      type: 'startNode',
+      data: {
+        nodeType: 'start',
+        colors: COLORS.start
+      },
+      position: { x: 0, y: 0 }
+    });
+  }
 
   /**
    * 处理 QNode
@@ -58,6 +78,12 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
       { bg: COLORS.question.bg, border: COLORS.question.border };
 
     const flowNodeId = `q-${qNode.userId}`;
+    const hasSingleAnswer = qNode.answers.length === 1;
+    const isExpanded = expandedQNodes.has(qNode.userId);
+    const shouldCollapseAnswer = hasSingleAnswer && !isExpanded;
+
+    // 如果折叠单个回答，存储回答信息供 Q 节点显示
+    const collapsedAnswer = hasSingleAnswer ? qNode.answers[0] : null;
 
     flowNodes.push({
       id: flowNodeId,
@@ -71,15 +97,24 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
         isSelected,
         childCount: qNode.answers.length,
         colors,
-        // 用于点击滚动
-        messageId: qNode.userId
+        messageId: qNode.userId,
+        // 折叠相关
+        collapsedAnswer: collapsedAnswer ? {
+          assistantId: collapsedAnswer.assistantId,
+          content: collapsedAnswer.content,
+          preview: collapsedAnswer.preview
+        } : null,
+        canExpand: hasSingleAnswer,  // 只要有单个回答就可以展开/折叠
+        isExpanded: isExpanded
       },
       position: { x: 0, y: 0 }
     });
 
     // 创建从父节点到当前节点的边
     if (parentFlowNodeId) {
-      const edgeSelected = isSelected && selectedPath.has(parentFlowNodeId.replace('a-', ''));
+      const parentIsAnswer = parentFlowNodeId.startsWith('a-');
+      const parentId = parentIsAnswer ? parentFlowNodeId.replace('a-', '') : null;
+      const edgeSelected = isSelected && parentId && selectedPath.has(parentId);
       flowEdges.push({
         id: `edge-${parentFlowNodeId}-${flowNodeId}`,
         source: parentFlowNodeId,
@@ -93,9 +128,18 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
       });
     }
 
-    // 递归处理回答
-    for (const aNode of qNode.answers) {
-      processANode(aNode, flowNodeId);
+    // 处理回答
+    if (shouldCollapseAnswer) {
+      // 单个回答被折叠：直接连接到下一层的 Q 节点
+      const aNode = qNode.answers[0];
+      for (const nextQNode of aNode.nextQuestions) {
+        processQNode(nextQNode, flowNodeId);
+      }
+    } else {
+      // 多个回答或已展开：正常渲染所有 A 节点
+      for (const aNode of qNode.answers) {
+        processANode(aNode, flowNodeId);
+      }
     }
   }
 
@@ -122,7 +166,6 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
         isSelected,
         childCount: aNode.nextQuestions.length,
         colors,
-        // 用于点击滚动
         messageId: aNode.assistantId
       },
       position: { x: 0, y: 0 }
@@ -151,7 +194,26 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set()) {
 
   // 从根问题开始处理
   for (const qNode of qaTree.root.questions) {
-    processQNode(qNode, null);
+    const parentId = hasMultipleRoots ? 'start-node' : null;
+    processQNode(qNode, parentId);
+  }
+
+  // 如果有起始节点，创建到所有根 Q 节点的边
+  if (hasMultipleRoots) {
+    for (const qNode of qaTree.root.questions) {
+      const isSelected = selectedPath.has(qNode.userId);
+      flowEdges.push({
+        id: `edge-start-q-${qNode.userId}`,
+        source: 'start-node',
+        target: `q-${qNode.userId}`,
+        type: 'smoothstep',
+        animated: false,
+        style: {
+          stroke: isSelected ? COLORS.edge.selected : COLORS.edge.normal,
+          strokeWidth: isSelected ? 2.5 : 1.5
+        }
+      });
+    }
   }
 
   return { nodes: flowNodes, edges: flowEdges };
@@ -183,9 +245,10 @@ export function applyDagreLayout(nodes, edges, direction = 'TB') {
 
   // 添加节点到 dagre
   nodes.forEach((node) => {
+    const isStartNode = node.data?.nodeType === 'start';
     dagreGraph.setNode(node.id, {
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT
+      width: isStartNode ? START_NODE_WIDTH : NODE_WIDTH,
+      height: isStartNode ? START_NODE_HEIGHT : NODE_HEIGHT
     });
   });
 
@@ -200,12 +263,15 @@ export function applyDagreLayout(nodes, edges, direction = 'TB') {
   // 更新节点位置
   const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
+    const isStartNode = node.data?.nodeType === 'start';
+    const width = isStartNode ? START_NODE_WIDTH : NODE_WIDTH;
+    const height = isStartNode ? START_NODE_HEIGHT : NODE_HEIGHT;
 
     return {
       ...node,
       position: {
-        x: nodeWithPosition.x - NODE_WIDTH / 2,
-        y: nodeWithPosition.y - NODE_HEIGHT / 2
+        x: nodeWithPosition.x - width / 2,
+        y: nodeWithPosition.y - height / 2
       }
     };
   });
@@ -219,9 +285,10 @@ export function applyDagreLayout(nodes, edges, direction = 'TB') {
  * @param {Object} qaTree
  * @param {Set<string>} selectedPath
  * @param {string} direction
+ * @param {Set<string>} expandedQNodes - 已展开的 Q 节点 ID
  * @returns {{ nodes: Array, edges: Array }}
  */
-export function buildAndLayoutQATree(qaTree, selectedPath, direction = 'TB') {
-  const { nodes, edges } = buildFlowFromQATree(qaTree, selectedPath);
+export function buildAndLayoutQATree(qaTree, selectedPath, direction = 'TB', expandedQNodes = new Set()) {
+  const { nodes, edges } = buildFlowFromQATree(qaTree, selectedPath, expandedQNodes);
   return applyDagreLayout(nodes, edges, direction);
 }

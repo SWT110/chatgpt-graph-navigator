@@ -524,6 +524,129 @@ html, body {
   border-radius: 0 2px 2px 0;
 }
 
+/* 展开回答按钮 */
+.qa-node-expand-answer-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: #22c55e;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.qa-node-expand-answer-btn:hover {
+  background: #16a34a;
+  transform: scale(1.1);
+}
+
+.qa-node-expand-answer-btn.expanded {
+  background: #64748b;
+}
+
+.qa-node-expand-answer-btn.expanded:hover {
+  background: #475569;
+}
+
+/* 内联回答展示（在 Q 节点内部） */
+.qa-node-inline-answer {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(34, 197, 94, 0.12);
+  border-radius: 6px;
+  border-left: 3px solid #22c55e;
+}
+
+.qa-node-inline-answer-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.qa-node-inline-answer-header .qa-node-icon {
+  font-size: 12px;
+}
+
+.qa-node-inline-answer-header .qa-node-label {
+  font-size: 10px;
+  color: #16a34a;
+}
+
+.qa-node-inline-answer-content .qa-node-text {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #475569;
+  -webkit-line-clamp: 4;
+}
+
+/* Q 节点展开回答后的样式调整 */
+.qa-node.answer-expanded {
+  max-width: 280px;
+}
+
+/* 折叠的回答预览 */
+.qa-node-collapsed-answer {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 6px;
+  border-left: 2px solid #22c55e;
+}
+
+.qa-node-collapsed-answer-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.qa-node-collapsed-answer-text {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ==================== 起始节点样式 ==================== */
+.start-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #f1f5f9;
+  border: 2px solid #94a3b8;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #475569;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.start-node-icon {
+  font-size: 14px;
+}
+
+.start-node-text {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ==================== 响应式调整 ==================== */
 @media (max-width: 400px) {
   .round-node {
