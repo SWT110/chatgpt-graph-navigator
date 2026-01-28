@@ -3,7 +3,7 @@
  */
 
 export const DB_NAME = 'ChatGPTGraphDB';
-export const DB_VERSION = 3;  // 增加版本号以触发升级
+export const DB_VERSION = 4;  // 增加版本号以触发升级（添加 edges 表）
 
 /**
  * 对象存储定义
@@ -25,6 +25,17 @@ export const OBJECT_STORES = {
       { name: 'conversationId', keyPath: 'conversationId', unique: false },
       { name: 'role', keyPath: 'role', unique: false },
       { name: 'createTime', keyPath: 'createTime', unique: false }
+    ]
+  },
+
+  // 边表（节点之间的父子关系）
+  edges: {
+    keyPath: 'id',  // 格式: ${conversationId}:${source}->${target}
+    indexes: [
+      { name: 'conversationId', keyPath: 'conversationId', unique: false },
+      { name: 'source', keyPath: 'source', unique: false },
+      { name: 'target', keyPath: 'target', unique: false },
+      { name: 'orderKey', keyPath: 'orderKey', unique: false }
     ]
   },
 

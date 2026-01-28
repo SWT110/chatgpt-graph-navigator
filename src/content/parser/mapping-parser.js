@@ -6,10 +6,10 @@ import { NODE_ROLES } from '../../shared/constants.js';
 import { log } from '../../shared/utils.js';
 
 /**
- * 解析 mapping 为节点数组
+ * 解析 mapping 为节点数组和边数组
  * @param {Object} mapping - 原始 mapping 对象
  * @param {string} conversationId - 对话 ID
- * @returns {ParsedNode[]} 解析后的节点数组
+ * @returns {{ nodes: ParsedNode[], edges: ParsedEdge[] }} 解析后的节点和边数组
  */
 export function parseMapping(mapping, conversationId) {
   log('info', 'Parser', 'Parsing mapping...');
@@ -36,6 +36,7 @@ export function parseMapping(mapping, conversationId) {
 
   const nodes = [];
 
+  // 第一遍：创建所有 nodes
   for (const nodeId in mapping) {
     const node = mapping[nodeId];
 
@@ -63,9 +64,38 @@ export function parseMapping(mapping, conversationId) {
     nodes.push(parsedNode);
   }
 
-  log('info', 'Parser', `Parsed ${nodes.length} nodes`);
+  // 构建有效节点集合（排除 system 节点）
+  const validNodeIds = new Set(nodes.map(n => n.id));
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-  return nodes;
+  // 第二遍：创建 edges
+  const edges = [];
+
+  for (const node of nodes) {
+    for (const childId of node.children) {
+      // 只创建指向有效节点的边
+      if (!validNodeIds.has(childId)) continue;
+
+      const childNode = nodeMap.get(childId);
+      if (!childNode) continue;
+
+      edges.push({
+        // 可重复计算的主键
+        id: `${conversationId}:${node.id}->${childId}`,
+        conversationId,
+        source: node.id,
+        target: childId,
+        sourceRole: node.role,
+        targetRole: childNode.role,
+        // 用于排序，优先用 target.createTime
+        orderKey: childNode.createTime || node.createTime || Date.now() / 1000
+      });
+    }
+  }
+
+  log('info', 'Parser', `Parsed ${nodes.length} nodes, ${edges.length} edges`);
+
+  return { nodes, edges };
 }
 
 /**

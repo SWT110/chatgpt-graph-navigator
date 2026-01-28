@@ -36,7 +36,7 @@ export class Database {
         console.log('[DB] Object stores:', Array.from(this.db.objectStoreNames));
 
         // 验证对象存储是否存在
-        const requiredStores = ['conversations', 'nodes', 'rounds', 'branches'];
+        const requiredStores = ['conversations', 'nodes', 'edges', 'rounds', 'branches'];
         const missingStores = requiredStores.filter(store => !this.db.objectStoreNames.contains(store));
 
         if (missingStores.length > 0) {
@@ -115,9 +115,12 @@ export class Database {
     // 保存更新后的对话
     await this.saveConversation(updated);
 
-    // 如果包含 nodes/rounds/branches 更新，也保存它们
+    // 如果包含 nodes/rounds/branches/edges 更新，也保存它们
     if (updates.nodes) {
       await this.saveNodes(updates.nodes);
+    }
+    if (updates.edges) {
+      await this.saveEdges(updates.edges);
     }
     if (updates.rounds) {
       await this.saveRounds(updates.rounds);
@@ -190,6 +193,55 @@ export class Database {
 
       request.onsuccess = () => {
         resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 批量保存边
+   * @param {Array} edges - 边数组
+   * @returns {Promise<void>}
+   */
+  async saveEdges(edges) {
+    const db = await this.open();
+    const tx = db.transaction('edges', 'readwrite');
+    const store = tx.objectStore('edges');
+
+    const promises = edges.map(edge => {
+      return new Promise((resolve, reject) => {
+        const request = store.put(edge);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    });
+
+    await Promise.all(promises);
+    console.log(`[DB] Saved ${edges.length} edges`);
+  }
+
+  /**
+   * 获取对话的所有边
+   * @param {string} conversationId - 对话 ID
+   * @returns {Promise<Array>}
+   */
+  async getEdges(conversationId) {
+    const db = await this.open();
+    const tx = db.transaction('edges', 'readonly');
+    const store = tx.objectStore('edges');
+    const index = store.index('conversationId');
+
+    return new Promise((resolve, reject) => {
+      const request = index.getAll(conversationId);
+
+      request.onsuccess = () => {
+        // 按 orderKey 排序
+        const edges = request.result || [];
+        edges.sort((a, b) => (a.orderKey || 0) - (b.orderKey || 0));
+        resolve(edges);
       };
 
       request.onerror = () => {
@@ -286,14 +338,20 @@ export class Database {
       title: conversationData.title,
       createTime: conversationData.createTime,
       updateTime: conversationData.updateTime,
-      nodeCount: conversationData.nodes.length,
-      roundCount: conversationData.rounds.length,
-      branchCount: conversationData.branches.length
+      nodeCount: conversationData.nodes?.length || 0,
+      edgeCount: conversationData.edges?.length || 0,
+      roundCount: conversationData.rounds?.length || 0,
+      branchCount: conversationData.branches?.length || 0
     });
 
     // 保存节点
     if (conversationData.nodes && conversationData.nodes.length > 0) {
       await this.saveNodes(conversationData.nodes);
+    }
+
+    // 保存边
+    if (conversationData.edges && conversationData.edges.length > 0) {
+      await this.saveEdges(conversationData.edges);
     }
 
     // 保存轮次

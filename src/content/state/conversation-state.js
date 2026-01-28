@@ -16,6 +16,7 @@ class ConversationState {
     this.title = null;
     this.mapping = {};           // 完整的 mapping（包括 API 和增量）
     this.nodes = [];             // 解析后的节点数组
+    this.edges = [];             // 边数组（节点之间的父子关系）
     this.rounds = [];            // 轮次数组
     this.branches = [];          // 分支数组
     this.analysis = null;        // 分支分析
@@ -35,6 +36,7 @@ class ConversationState {
     this.title = conversationData.title;
     this.mapping = { ...conversationData.mapping };
     this.nodes = conversationData.nodes;
+    this.edges = conversationData.edges || [];
     this.rounds = conversationData.rounds;
     this.branches = conversationData.branches;
     this.analysis = conversationData.analysis;
@@ -47,6 +49,7 @@ class ConversationState {
     log('info', 'State', 'Conversation state initialized', {
       id: this.conversationId,
       nodes: this.nodes.length,
+      edges: this.edges.length,
       rounds: this.rounds.length,
       branches: this.branches.length
     });
@@ -124,13 +127,15 @@ class ConversationState {
   }
 
   /**
-   * 重新解析节点、轮次和分支
+   * 重新解析节点、边、轮次和分支
    * @private
    */
   reparse() {
     try {
-      // 重新解析 nodes
-      this.nodes = parseMapping(this.mapping, this.conversationId);
+      // 重新解析 nodes 和 edges
+      const { nodes, edges } = parseMapping(this.mapping, this.conversationId);
+      this.nodes = nodes;
+      this.edges = edges;
 
       // 重新构建 rounds
       this.rounds = buildRounds(this.nodes);
@@ -142,7 +147,7 @@ class ConversationState {
       this.analysis = analyzeBranchStructure(this.nodes);
 
       const stats = getNodeStatistics(this.nodes);
-      log('debug', 'State', 'Reparsed conversation', stats);
+      log('debug', 'State', 'Reparsed conversation', { ...stats, edges: this.edges.length });
 
     } catch (error) {
       log('error', 'State', 'Failed to reparse:', error);
@@ -161,6 +166,7 @@ class ConversationState {
       updateTime: this.updateTime,
       mapping: this.mapping,
       nodes: this.nodes,
+      edges: this.edges,
       rounds: this.rounds,
       branches: this.branches,
       analysis: this.analysis,
@@ -185,6 +191,7 @@ class ConversationState {
       conversationId: this.conversationId,
       newNode: newNode,
       updatedNodes: this.nodes,
+      updatedEdges: this.edges,
       updatedBranches: this.branches,
       updatedRounds: this.rounds,
       updatedAnalysis: this.analysis,
@@ -200,6 +207,7 @@ class ConversationState {
     return {
       conversationId: this.conversationId,
       totalNodes: this.nodes.length,
+      totalEdges: this.edges.length,
       totalRounds: this.rounds.length,
       totalBranches: this.branches.length,
       branchPoints: this.analysis?.branchPointsCount || 0,
@@ -217,6 +225,7 @@ class ConversationState {
     this.title = null;
     this.mapping = {};
     this.nodes = [];
+    this.edges = [];
     this.rounds = [];
     this.branches = [];
     this.analysis = null;

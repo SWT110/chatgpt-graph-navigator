@@ -390,11 +390,11 @@ async function fetchAndProcessConversation(conversationId) {
       mappingSize: Object.keys(data.mapping).length
     });
 
-    // 2. 解析 mapping
-    const nodes = parseMapping(data.mapping, conversationId);
+    // 2. 解析 mapping（返回 nodes 和 edges）
+    const { nodes, edges } = parseMapping(data.mapping, conversationId);
     const stats = getNodeStatistics(nodes);
 
-    log('info', 'Content', 'Nodes parsed', stats);
+    log('info', 'Content', 'Parsed', { nodes: nodes.length, edges: edges.length, ...stats });
 
     // 3. 提取分支
     const branches = extractBranches(nodes);
@@ -415,6 +415,7 @@ async function fetchAndProcessConversation(conversationId) {
       updateTime: data.update_time,
       mapping: data.mapping,
       nodes,
+      edges,
       rounds,
       branches,
       analysis
@@ -521,6 +522,7 @@ function logDebugInfo(conversationData) {
 
   console.log('📊 Statistics:', {
     'Total Nodes': conversationData.nodes.length,
+    'Total Edges': conversationData.edges.length,
     'User Messages': conversationData.nodes.filter(n => n.role === 'user').length,
     'Assistant Replies': conversationData.nodes.filter(n => n.role === 'assistant').length,
     'Rounds': conversationData.rounds.length,

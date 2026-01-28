@@ -74,9 +74,10 @@ async function handleConversationLoaded(conversationData) {
     await notifySidePanel(MESSAGE_TYPES.DATA_READY, {
       conversationId: conversationData.id,
       stats: {
-        nodes: conversationData.nodes.length,
-        rounds: conversationData.rounds.length,
-        branches: conversationData.branches.length
+        nodes: conversationData.nodes?.length || 0,
+        edges: conversationData.edges?.length || 0,
+        rounds: conversationData.rounds?.length || 0,
+        branches: conversationData.branches?.length || 0
       }
     });
 
@@ -111,6 +112,7 @@ async function handleIncrementalUpdate(updateData) {
       await db.saveFullConversation({
         id: updateData.conversationId,
         nodes: updateData.updatedNodes,
+        edges: updateData.updatedEdges || [],
         rounds: updateData.updatedRounds,
         branches: updateData.updatedBranches,
         analysis: updateData.updatedAnalysis,
@@ -120,6 +122,7 @@ async function handleIncrementalUpdate(updateData) {
       // 更新现有对话
       await db.updateConversation(updateData.conversationId, {
         nodes: updateData.updatedNodes,
+        edges: updateData.updatedEdges || [],
         rounds: updateData.updatedRounds,
         branches: updateData.updatedBranches,
         analysis: updateData.updatedAnalysis,
@@ -134,9 +137,10 @@ async function handleIncrementalUpdate(updateData) {
       conversationId: updateData.conversationId,
       newNode: updateData.newNode,
       stats: {
-        nodes: updateData.updatedNodes.length,
-        rounds: updateData.updatedRounds.length,
-        branches: updateData.updatedBranches.length
+        nodes: updateData.updatedNodes?.length || 0,
+        edges: updateData.updatedEdges?.length || 0,
+        rounds: updateData.updatedRounds?.length || 0,
+        branches: updateData.updatedBranches?.length || 0
       }
     });
 
@@ -168,15 +172,17 @@ async function handleGetConversation(payload) {
     throw new Error(`Conversation not found: ${conversationId}`);
   }
 
-  // 获取相关数据
-  const [nodes, rounds] = await Promise.all([
+  // 获取相关数据（包括 edges）
+  const [nodes, edges, rounds] = await Promise.all([
     db.getNodes(conversationId),
+    db.getEdges(conversationId),
     db.getRounds(conversationId)
   ]);
 
   return {
     conversation,
     nodes,
+    edges,
     rounds
   };
 }
@@ -190,21 +196,25 @@ async function handleGetAllConversations() {
 
   let conversations = await db.getAllConversations();
 
-  // 默认按更新时间倒序（更符合“当前/最新对话”直觉）
+  // 默认按更新时间倒序（更符合"当前/最新对话"直觉）
   conversations = conversations
     .slice()
     .sort((a, b) => (b.updateTime || 0) - (a.updateTime || 0));
 
-  // 为每个对话获取完整数据（包括 rounds）
+  // 为每个对话获取完整数据（包括 nodes, edges, rounds）
   const fullConversations = await Promise.all(
     conversations.map(async (conv) => {
       try {
-        const nodes = await db.getNodes(conv.id);
-        const rounds = await db.getRounds(conv.id);
+        const [nodes, edges, rounds] = await Promise.all([
+          db.getNodes(conv.id),
+          db.getEdges(conv.id),
+          db.getRounds(conv.id)
+        ]);
 
         return {
           ...conv,
           nodes,
+          edges,
           rounds
         };
       } catch (error) {

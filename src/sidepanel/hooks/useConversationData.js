@@ -95,13 +95,14 @@ async function getActiveConversationIdFromTab() {
 /**
  * 转换对话数据为 sidepanel 图谱格式
  *
- * background.GET_CONVERSATION 返回：{ conversation, nodes, rounds }
+ * background.GET_CONVERSATION 返回：{ conversation, nodes, edges, rounds }
  */
 function transformToGraphData(payload) {
   if (!payload) return null;
 
   const conversation = payload.conversation || payload;
   const nodes = payload.nodes || conversation.nodes || [];
+  const edges = payload.edges || conversation.edges || [];
   const roundsFromDB = payload.rounds || conversation.rounds || [];
 
   // ✅ 强制用 nodes 重建 rounds：
@@ -123,12 +124,15 @@ function transformToGraphData(payload) {
   return {
     id: conversation.id,
     title: conversation.title || 'Untitled Conversation',
+    nodes,
+    edges,
     rounds,
-    // 用于调试/未来扩展（Graph 现在不依赖这个字段，但保留有用）
+    // 用于调试/未来扩展
     updatedAt: conversation.lastIncrementalUpdate || conversation.updateTime || Date.now(),
     stats: {
       totalRounds: rounds.length,
-      totalNodes: nodes.length || conversation.nodeCount || rounds.length * 2
+      totalNodes: nodes.length || conversation.nodeCount || rounds.length * 2,
+      totalEdges: edges.length || conversation.edgeCount || 0
     }
   };
 }
