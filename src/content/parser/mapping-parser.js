@@ -55,19 +55,27 @@ export function parseMapping(mapping, conversationId) {
     'model_editable_context',
   ]);
 
-  // 判断消息是否为有效的对话消息（排除工具调用的中间产物）
+  // 判断消息是否为有效的对话消息（排除工具调用的中间产物和空内容）
   const isConversationMessage = (message) => {
     if (!message) return false;
     const role = message.author?.role;
     if (role !== NODE_ROLES.USER && role !== NODE_ROLES.ASSISTANT) return false;
 
-    // assistant 消息需要进一步检查 content_type
+    // assistant 消息需要进一步检查
     if (role === NODE_ROLES.ASSISTANT) {
+      // 检查 content_type
       const contentType = message.content?.content_type;
       if (contentType && TOOL_CONTENT_TYPES.has(contentType)) {
         return false;
       }
+
+      // 检查内容是否为空（空内容的 assistant 节点通常是工具调用的占位符）
+      const text = normalizeText(message.content);
+      if (!text || text.trim().length === 0) {
+        return false;
+      }
     }
+
     return true;
   };
 
