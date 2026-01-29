@@ -48,7 +48,16 @@ export const NODE_ROLES = {
 export const STORAGE_KEYS = {
   CURRENT_CONVERSATION: 'current_conversation',
   CACHE_PREFIX: 'cache_',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
+  COLLAPSE_SETTINGS: 'chatgpt_graph_collapse_settings'
+};
+
+// 内容折叠默认设置
+export const DEFAULT_COLLAPSE_SETTINGS = {
+  enabled: true,
+  threshold: 200,
+  autoCollapseQuestion: true,
+  autoCollapseAnswer: true
 };
 
 // 配置

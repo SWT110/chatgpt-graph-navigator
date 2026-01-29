@@ -388,5 +388,30 @@
   },
   "openGraphBtn": {
     "message": "Open Graph View"
+  },
+
+  "collapseSettingsTitle": {
+    "message": "Content Collapse Settings"
+  },
+  "collapseEnabled": {
+    "message": "Enable auto collapse"
+  },
+  "collapseThreshold": {
+    "message": "Collapse threshold"
+  },
+  "collapseThresholdUnit": {
+    "message": "characters"
+  },
+  "collapseQuestion": {
+    "message": "Auto collapse questions"
+  },
+  "collapseAnswer": {
+    "message": "Auto collapse answers"
+  },
+  "collapseBtn": {
+    "message": "Collapse"
+  },
+  "expandBtn": {
+    "message": "Expand"
   }
 }

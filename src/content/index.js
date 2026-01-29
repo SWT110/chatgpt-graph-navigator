@@ -22,6 +22,7 @@ import { createURLObserver } from './observers/url-observer.js';
 import { createMessageObserver } from './observers/message-observer.js';
 import { conversationState } from './state/conversation-state.js';
 import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
+import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -237,6 +238,16 @@ async function main() {
 
   // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
   setupMessageListener();
+
+  // 设置折叠设置监听器
+  setupSettingsListener();
+
+  // 初始化折叠管理器（不依赖 token，可以立即启动）
+  try {
+    await initCollapseManager();
+  } catch (e) {
+    log('warn', 'Content', 'Failed to initialize collapse manager:', e);
+  }
 
   // 检查是否在对话页面
   if (!isConversationPage()) {

@@ -388,5 +388,30 @@
   },
   "openGraphBtn": {
     "message": "打开图谱视图"
+  },
+
+  "collapseSettingsTitle": {
+    "message": "内容折叠设置"
+  },
+  "collapseEnabled": {
+    "message": "启用自动折叠"
+  },
+  "collapseThreshold": {
+    "message": "折叠阈值"
+  },
+  "collapseThresholdUnit": {
+    "message": "字符"
+  },
+  "collapseQuestion": {
+    "message": "自动折叠问题"
+  },
+  "collapseAnswer": {
+    "message": "自动折叠回答"
+  },
+  "collapseBtn": {
+    "message": "折叠"
+  },
+  "expandBtn": {
+    "message": "展开"
   }
 }
