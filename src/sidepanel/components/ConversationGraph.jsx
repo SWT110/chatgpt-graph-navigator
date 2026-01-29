@@ -47,16 +47,35 @@ function GraphContent({
   onNodeContextMenu,
   containerHeight
 }) {
-  const { fitView, setCenter } = useReactFlow();
+  const { fitView, setCenter, getZoom, getViewport } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [expandedQNodes, setExpandedQNodes] = useState(new Set());
+
+  // 标记是否已经初始化过视图
+  const hasInitializedView = useRef(false);
 
   // 用于追踪是否应该 fitView（只在数据变化时，不在展开/折叠时）
   const prevQaTreeRef = useRef(null);
   const prevSelectedPathRef = useRef(null);
   const prevCurrentNodeIdRef = useRef(null);
   const prevContainerHeightRef = useRef(0);
+  const prevNodeCountRef = useRef(0); // 追踪节点数量，用于判断是否真的是数据变化
+
+  // DEBUG: 监控视口变化
+  const lastViewportRef = useRef(null);
+  useEffect(() => {
+    const checkViewport = () => {
+      const viewport = getViewport();
+      const last = lastViewportRef.current;
+      if (!last || last.x !== viewport.x || last.y !== viewport.y || last.zoom !== viewport.zoom) {
+        console.log('[Graph DEBUG] Viewport changed:', viewport, 'from:', last);
+        lastViewportRef.current = { ...viewport };
+      }
+    };
+    const intervalId = setInterval(checkViewport, 200);
+    return () => clearInterval(intervalId);
+  }, [getViewport]);
 
   // 展开/折叠回答的处理函数
   const handleExpandAnswer = useCallback((nodeId) => {
@@ -75,6 +94,7 @@ function GraphContent({
   useEffect(() => {
     // 只在容器高度真正变化时才 fitView
     if (containerHeight > 0 && nodes.length > 0 && prevContainerHeightRef.current !== containerHeight) {
+      console.log('[Graph DEBUG] containerHeight changed:', prevContainerHeightRef.current, '->', containerHeight, '=> calling fitView');
       prevContainerHeightRef.current = containerHeight;
       setTimeout(() => {
         fitView({ padding: 0.2, duration: 300 });
@@ -90,16 +110,18 @@ function GraphContent({
       return;
     }
 
-    // 检测是否是数据变化（而非仅展开状态变化）
-    const isDataChange = prevQaTreeRef.current !== qaTree || prevSelectedPathRef.current !== selectedPath;
+    // 检测是否是 QA 树数据变化（通过节点数量判断，而不是引用）
+    // 如果只是选中路径变化（selectNode），节点数量不会变，不应该触发 fitView
+    const currentNodeCount = (qaTree.qNodeMap?.size || 0) + (qaTree.aNodeMap?.size || 0);
+    const isTreeDataChange = prevNodeCountRef.current !== currentNodeCount;
+    prevNodeCountRef.current = currentNodeCount;
     prevQaTreeRef.current = qaTree;
     prevSelectedPathRef.current = selectedPath;
 
-    console.log('[Graph] Building from QA tree...',
-      'Q:', qaTree.qNodeMap?.size || 0,
-      'A:', qaTree.aNodeMap?.size || 0,
-      'Expanded:', expandedQNodes.size,
-      'DataChange:', isDataChange
+    console.log('[Graph DEBUG] useEffect triggered:',
+      'isTreeDataChange:', isTreeDataChange,
+      'nodeCount:', currentNodeCount,
+      'prev:', prevNodeCountRef.current
     );
 
     // 从 QA 树构建并布局
@@ -127,42 +149,21 @@ function GraphContent({
     setNodes(nodesWithHandlers);
     setEdges(layoutedEdges);
 
-    // 只在数据变化时适应视图，展开/折叠时保持当前缩放
-    if (isDataChange) {
+    // 只在 QA 树数据变化时适应视图（新对话或刷新），选中路径变化不触发
+    if (isTreeDataChange) {
+      console.log('[Graph DEBUG] isTreeDataChange=true => calling fitView');
       setTimeout(() => {
         fitView({ padding: 0.2, duration: 300 });
       }, 100);
+    } else {
+      console.log('[Graph DEBUG] isTreeDataChange=false => NOT calling fitView');
     }
 
   }, [qaTree, selectedPath, expandedQNodes, setNodes, setEdges, fitView, handleExpandAnswer]);
 
-  // 当前节点变化时，定位到该节点（只在 currentNodeId 真正变化时）
-  useEffect(() => {
-    if (!currentNodeId || nodes.length === 0) return;
-
-    // 只在 currentNodeId 真正变化时才定位
-    if (prevCurrentNodeIdRef.current === currentNodeId) return;
-    prevCurrentNodeIdRef.current = currentNodeId;
-
-    // 尝试找到对应的节点（可能是 q-xxx 或 a-xxx 格式）
-    let targetNode = nodes.find(n =>
-      n.id === currentNodeId ||
-      n.id === `q-${currentNodeId}` ||
-      n.id === `a-${currentNodeId}` ||
-      n.data?.nodeId === currentNodeId
-    );
-
-    if (targetNode) {
-      setCenter(targetNode.position.x + 120, targetNode.position.y + 50, {
-        zoom: 1,
-        duration: 500
-      });
-    }
-  }, [currentNodeId, nodes, setCenter]);
-
   // 处理节点点击
   const handleNodeClick = useCallback((event, node) => {
-    console.log('[Graph] Node clicked:', node.id, node.data?.nodeType);
+    console.log('[Graph DEBUG] Node clicked:', node.id, node.data?.nodeType);
     // 忽略起始节点的点击
     if (node.data?.nodeType === 'start') return;
     onNodeClick?.(node.data.nodeId, node.data);
@@ -203,8 +204,6 @@ function GraphContent({
       nodeTypes={nodeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
       nodeDragThreshold={5}
-      fitView
-      fitViewOptions={{ padding: 0.2 }}
       minZoom={0.1}
       maxZoom={2}
       attributionPosition="bottom-left"
