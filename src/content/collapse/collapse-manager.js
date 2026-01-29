@@ -154,6 +154,30 @@ function findButtonContainer(article, messageType) {
 }
 
 /**
+ * 检查元素是否在视口内
+ * @param {HTMLElement} element
+ * @returns {boolean}
+ */
+function isElementInViewport(element) {
+  const rect = element.getBoundingClientRect();
+  const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+
+  // 检查元素顶部是否在视口内（至少能看到元素的开头）
+  return rect.top >= 0 && rect.top < windowHeight;
+}
+
+/**
+ * 滚动到元素位置
+ * @param {HTMLElement} element
+ */
+function scrollToElement(element) {
+  element.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
+
+/**
  * 更新按钮的显示状态
  * @param {HTMLButtonElement} btn
  * @param {boolean} isCollapsed
@@ -268,6 +292,16 @@ function processMessage(article, isSettingsUpdate = false) {
     state.isCollapsed = !state.isCollapsed;
     setCollapseState(contentContainer, state.isCollapsed);
     updateButtonState(btn, state.isCollapsed);
+
+    // 如果是折叠操作，检查是否需要滚动
+    if (state.isCollapsed) {
+      // 延迟检查，等待折叠动画完成
+      setTimeout(() => {
+        if (!isElementInViewport(article)) {
+          scrollToElement(article);
+        }
+      }, 50);
+    }
   });
 
   // 插入按钮
