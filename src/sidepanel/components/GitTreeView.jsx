@@ -166,6 +166,112 @@ export default function GitTreeView({
   const [expanded, setExpanded] = useState(() => new Set());
   // Track whether the floating panel's controls are hidden (embedded mode only)
   const [controlsHidden, setControlsHidden] = useState(false);
+  // Responsive compact level for toolbar (overflow-driven)
+  const [compactLevel, setCompactLevel] = useState(0);
+  const toolbarRef = useRef(null);
+  const compactUpdateScheduledRef = useRef(false);
+  const currentCompactLevelRef = useRef(0);
+  const lastToolbarWidthRef = useRef(0);
+
+  // Overflow-driven responsive toolbar with hysteresis
+  const MAX_COMPACT_LEVEL = 3;
+  const OVERFLOW_EPS = 1;
+  const HYSTERESIS_SLACK = 12;
+
+  const applyToolbarCompact = useCallback((level) => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const value = String(level);
+    if (toolbar.dataset.compact !== value) {
+      toolbar.dataset.compact = value;
+    }
+  }, []);
+
+  const updateToolbarCompact = useCallback(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+
+    const row =
+      toolbar.querySelector('.git-toolbar-row2') ||
+      toolbar.querySelector('.git-toolbar-row1');
+
+    if (!row) {
+      if (currentCompactLevelRef.current !== 0) {
+        currentCompactLevelRef.current = 0;
+        setCompactLevel(0);
+      }
+      applyToolbarCompact(0);
+      return;
+    }
+
+    let level = currentCompactLevelRef.current;
+    applyToolbarCompact(level);
+    void row.offsetWidth;
+
+    let overflow = row.scrollWidth - row.clientWidth;
+
+    if (overflow > OVERFLOW_EPS) {
+      while (level < MAX_COMPACT_LEVEL && overflow > OVERFLOW_EPS) {
+        level += 1;
+        applyToolbarCompact(level);
+        void row.offsetWidth;
+        overflow = row.scrollWidth - row.clientWidth;
+      }
+      if (level !== currentCompactLevelRef.current) {
+        currentCompactLevelRef.current = level;
+        setCompactLevel(level);
+      }
+      applyToolbarCompact(level);
+      return;
+    }
+
+    while (level > 0) {
+      const candidate = level - 1;
+      applyToolbarCompact(candidate);
+      void row.offsetWidth;
+      const slack = row.clientWidth - row.scrollWidth;
+      if (slack >= HYSTERESIS_SLACK) {
+        level = candidate;
+        continue;
+      }
+      break;
+    }
+
+    if (level !== currentCompactLevelRef.current) {
+      currentCompactLevelRef.current = level;
+      setCompactLevel(level);
+    }
+    applyToolbarCompact(level);
+  }, [applyToolbarCompact]);
+
+  const scheduleCompactUpdate = useCallback(() => {
+    if (compactUpdateScheduledRef.current) return;
+    compactUpdateScheduledRef.current = true;
+    requestAnimationFrame(() => {
+      compactUpdateScheduledRef.current = false;
+      updateToolbarCompact();
+    });
+  }, [updateToolbarCompact]);
+
+  // ResizeObserver for responsive toolbar
+  useEffect(() => {
+    const target = containerRef.current;
+    if (!target) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const width = entries?.[0]?.contentRect?.width ?? 0;
+      if (Math.abs(width - lastToolbarWidthRef.current) < 0.5) return;
+      lastToolbarWidthRef.current = width;
+      scheduleCompactUpdate();
+    });
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [scheduleCompactUpdate]);
+
+  useEffect(() => {
+    scheduleCompactUpdate();
+  }, [scheduleCompactUpdate, toolbarCollapsed, controlsHidden, searchQuery]);
 
   // Embedded mode (floating window): allow parent to open/focus the search row.
   useEffect(() => {
@@ -706,7 +812,7 @@ export default function GitTreeView({
       ref={containerRef}
       style={{ '--gitScale': String(fontScale) }}
     >
-      <div className="git-toolbar">
+      <div className="git-toolbar" ref={toolbarRef} data-compact={compactLevel}>
         {/* Row 1: sidepanel-only (merged header) */}
         {showPanelControls && (
           <div className="git-toolbar-row git-toolbar-row1">
@@ -888,7 +994,7 @@ export default function GitTreeView({
                   title="Hide search & filters"
                   aria-label="Hide search & filters"
                 >
-                  ▾
+                  ▴
                 </button>
               )}
 

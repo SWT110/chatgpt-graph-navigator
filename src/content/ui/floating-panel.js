@@ -80,24 +80,10 @@ function ensureStyles() {
       background: rgba(255,255,255,.86);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      /*
-        IMPORTANT: opacity should affect the WHOLE floating window (including background),
-        so users can see the page beneath it.
-
-        Previously we only applied opacity to .cg-body, which made the iframe contents fade
-        but kept the panel background nearly solid white.
-      */
       opacity: var(--cgAlpha, 0.96);
       transition: opacity .12s ease;
       overflow: hidden;
-      /*
-        We intentionally DISABLE native CSS resizing.
-        Native resizing on a fixed element can lead to "stuck" pointer states
-        (cursor remains in resize mode) and jumpy behavior after releasing the mouse
-        on some platforms. We use a custom resize handle instead.
-      */
       resize: none;
-      /* allow a narrower window while keeping controls usable */
       min-width: 280px;
       min-height: 240px;
       max-width: min(92vw, 840px);
@@ -110,7 +96,6 @@ function ensureStyles() {
     #${PANEL_ID}.cg-controls-hidden .cg-header {
       display: none;
     }
-    /* Allow the control popover to render outside the panel bounds (especially when minimized). */
     #${PANEL_ID}.cg-popover-open {
       overflow: visible;
     }
@@ -123,73 +108,98 @@ function ensureStyles() {
     #${PANEL_ID}.cg-locked {
       resize: none;
     }
+
+    /* ============================================================
+       Header layout: flex-start + margin-left:auto (no space-between)
+       This prevents negative gap / overlap issues at narrow widths.
+    ============================================================ */
     #${PANEL_ID} .cg-header {
       height: 40px;
       flex: 0 0 auto;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 0 10px;
+      justify-content: flex-start;
+      gap: var(--cg-gap, 8px);
+      padding: 0 var(--cg-pad, 10px);
       background: rgba(255,255,255,.90);
       border-bottom: 1px solid rgba(15, 23, 42, .08);
       cursor: grab;
       flex-wrap: nowrap;
       white-space: nowrap;
+      overflow: hidden;
     }
     #${PANEL_ID}.cg-locked .cg-header {
       cursor: default;
     }
-    #${PANEL_ID} .cg-bar-left,
+    #${PANEL_ID} .cg-bar-left {
+      display: flex;
+      align-items: center;
+      gap: var(--cg-gap, 6px);
+      cursor: default;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
     #${PANEL_ID} .cg-bar-right {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--cg-gap, 6px);
       cursor: default;
       min-width: 0;
+      flex: 0 1 auto;
+      margin-left: auto;
     }
 
-    /* ------------------------------------------------------------
-       Responsive header (1 line max)
-
-       Problem:
-       - When the floating window is resized narrow, right-aligned buttons can clip.
-
-       Strategy:
-       - Keep the header as a single row (no wrap)
-       - Shrink flexible controls first (sliders)
-       - If still overflowing, progressively hide low-priority controls
-         (opacity slider -> view toggle -> refresh) while keeping essentials.
-    ------------------------------------------------------------ */
-    #${PANEL_ID}[data-cg-compact="1"] .cg-header {
-      padding: 0 8px;
-      gap: 6px;
+    /* ============================================================
+       Responsive compact levels (overflow-driven)
+       Level 0: default
+       Level 1: shrink sizes/gaps
+       Level 2: hide refresh
+       Level 3: hide refresh + opacity
+       Level 4: hide refresh + opacity + view toggle
+    ============================================================ */
+    #${PANEL_ID}[data-cg-compact="1"] {
+      --cg-gap: 4px;
+      --cg-pad: 8px;
+      --cg-btn: 26px;
+      --cg-view-btn: 26px;
+      --cg-slider: 56px;
     }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-left,
-    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-right {
-      gap: 4px;
+    #${PANEL_ID}[data-cg-compact="2"] {
+      --cg-gap: 4px;
+      --cg-pad: 8px;
+      --cg-btn: 26px;
+      --cg-view-btn: 26px;
+      --cg-slider: 56px;
     }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-btn {
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
+    #${PANEL_ID}[data-cg-compact="2"] .cg-header [data-action="refresh"] {
+      display: none !important;
     }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-view-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
+    #${PANEL_ID}[data-cg-compact="3"] {
+      --cg-gap: 4px;
+      --cg-pad: 8px;
+      --cg-btn: 26px;
+      --cg-view-btn: 26px;
     }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-header .cg-opacity input[type="range"] {
-      width: 56px;
+    #${PANEL_ID}[data-cg-compact="3"] .cg-header [data-action="refresh"] {
+      display: none !important;
     }
-    #${PANEL_ID}[data-cg-compact="2"] .cg-header .cg-opacity {
-      display: none;
+    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-opacity {
+      display: none !important;
     }
-    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-view-toggle {
-      display: none;
+    #${PANEL_ID}[data-cg-compact="4"] {
+      --cg-gap: 4px;
+      --cg-pad: 6px;
+      --cg-btn: 24px;
+      --cg-view-btn: 24px;
     }
-    #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-bar-left [data-action="refresh"] {
-      display: none;
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header [data-action="refresh"] {
+      display: none !important;
+    }
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-opacity {
+      display: none !important;
+    }
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-view-toggle {
+      display: none !important;
     }
 
     #${PANEL_ID} .cg-view-toggle {
@@ -200,10 +210,11 @@ function ensureStyles() {
       background: rgba(241, 245, 249, .92);
       border: 1px solid rgba(15, 23, 42, .10);
       border-radius: 10px;
+      flex-shrink: 0;
     }
     #${PANEL_ID} .cg-view-btn {
-      width: 30px;
-      height: 30px;
+      width: var(--cg-view-btn, 30px);
+      height: var(--cg-view-btn, 30px);
       border: none;
       background: transparent;
       border-radius: 8px;
@@ -213,25 +224,18 @@ function ensureStyles() {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+      transition: background-color 0.15s ease, box-shadow 0.15s ease;
     }
     #${PANEL_ID} .cg-view-btn:hover {
       background: rgba(255,255,255,0.7);
-      transform: translateY(-1px);
     }
     #${PANEL_ID} .cg-view-btn.cg-active {
       background: rgba(255,255,255,0.96);
       box-shadow: 0 2px 10px rgba(0,0,0,0.10);
     }
-    #${PANEL_ID} .cg-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: default;
-    }
     #${PANEL_ID} .cg-btn {
-      width: 28px;
-      height: 28px;
+      width: var(--cg-btn, 28px);
+      height: var(--cg-btn, 28px);
       border: 1px solid rgba(15, 23, 42, .10);
       background: rgba(255, 255, 255, .86);
       border-radius: 8px;
@@ -240,15 +244,12 @@ function ensureStyles() {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      flex-shrink: 0;
+      transition: background .12s ease, border-color .12s ease;
     }
     #${PANEL_ID} .cg-btn:hover {
-      transform: translateY(-1px);
       background: rgba(248, 250, 252, .96);
       border-color: rgba(15, 23, 42, .18);
-    }
-    #${PANEL_ID} .cg-btn:active {
-      transform: translateY(0);
     }
     #${PANEL_ID} .cg-btn.cg-active {
       border-color: rgba(37, 99, 235, .45);
@@ -257,68 +258,23 @@ function ensureStyles() {
     #${PANEL_ID} .cg-opacity {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       padding: 0 8px;
       border: 1px solid rgba(15, 23, 42, .10);
       border-radius: 999px;
       background: rgba(255,255,255,.86);
-      height: 28px;
+      height: var(--cg-btn, 28px);
+      flex: 0 1 auto;
+      min-width: 0;
     }
     #${PANEL_ID} .cg-opacity input[type="range"] {
-      width: 96px;
+      flex: 0 1 var(--cg-slider, 70px);
+      width: var(--cg-slider, 70px);
+      min-width: 56px;
+      max-width: 100%;
       accent-color: #2563eb;
     }
-    /* Header needs to stay compact when the panel is narrow */
-    #${PANEL_ID} .cg-header .cg-opacity input[type="range"] {
-      width: 74px;
-    }
-    @media (max-width: 340px) {
-      #${PANEL_ID} .cg-header .cg-opacity input[type="range"] {
-        width: 56px;
-      }
-    }
 
-    /*
-      Responsive header fitting (no clipping):
-      The floating window top bar must stay a SINGLE line.
-      We progressively compact/hide low-priority controls when needed.
-    */
-    #${PANEL_ID}[data-cg-compact="1"] .cg-header {
-      padding: 0 8px;
-      gap: 6px;
-    }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-left,
-    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-right {
-      gap: 4px;
-    }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-btn {
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
-    }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-view-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-    }
-    #${PANEL_ID}[data-cg-compact="1"] .cg-header .cg-opacity input[type="range"] {
-      width: 56px;
-    }
-
-    /* Hide opacity slider first (still available inside 🧰 controls popover) */
-    #${PANEL_ID}[data-cg-compact="2"] .cg-header .cg-opacity {
-      display: none;
-    }
-
-    /* Then hide view toggle (still available inside popover) */
-    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-view-toggle {
-      display: none;
-    }
-
-    /* Finally hide refresh (still available inside popover) */
-    #${PANEL_ID}[data-cg-compact="4"] .cg-header [data-action="refresh"] {
-      display: none;
-    }
     #${PANEL_ID} .cg-body {
       flex: 1 1 auto;
       min-height: 0;
@@ -345,7 +301,7 @@ function ensureStyles() {
       align-items: center;
       justify-content: center;
       opacity: 0.12;
-      transition: opacity .12s ease, transform .12s ease;
+      transition: opacity .12s ease;
       z-index: 2;
       background: rgba(255,255,255,0.35);
       border: 1px solid rgba(15, 23, 42, .10);
@@ -356,7 +312,6 @@ function ensureStyles() {
     }
     #${PANEL_ID} .cg-resizer:hover {
       opacity: 0.9;
-      transform: translateY(-1px);
     }
     #${PANEL_ID} .cg-resizer::before {
       content: '';
@@ -373,19 +328,13 @@ function ensureStyles() {
       display: none;
     }
 
-    /*
-      Mini bar shown when the main toolbar is hidden.
-      - Provides a draggable strip
-      - Hosts the "search" (when needed) + "show toolbar" button
-      - Avoids overlapping the embedded UI (unlike a floating handle)
-      - HIDDEN when tree search row is expanded (to avoid double bars)
-    */
+    /* Mini bar (when main toolbar hidden) */
     #${PANEL_ID} .cg-mini-bar {
       height: 30px;
       flex: 0 0 auto;
       display: none;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 8px;
       padding: 0 10px;
       background: rgba(255,255,255,.90);
@@ -395,18 +344,22 @@ function ensureStyles() {
     #${PANEL_ID}.cg-locked .cg-mini-bar {
       cursor: default;
     }
-    /* Show mini bar only when controls are hidden AND tree search is collapsed (or not in tree mode) */
     #${PANEL_ID}.cg-controls-hidden:not(.cg-tree-search-expanded) .cg-mini-bar {
       display: flex;
     }
     #${PANEL_ID}.cg-through .cg-mini-bar {
       display: none;
     }
-    #${PANEL_ID} .cg-mini-left,
+    #${PANEL_ID} .cg-mini-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     #${PANEL_ID} .cg-mini-right {
       display: flex;
       align-items: center;
       gap: 6px;
+      margin-left: auto;
     }
 
     #${PANEL_ID} .cg-popover {
@@ -653,7 +606,7 @@ function buildPanel(state, setState, getState) {
       <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
     </div>
     <div class="cg-mini-right">
-      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">▴</button>
+      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">☰</button>
       <button class="cg-btn" data-action="close" title="Close">✕</button>
     </div>
   `.trim();
@@ -754,32 +707,91 @@ function buildPanel(state, setState, getState) {
   let treeToolbarCollapsed = false;
 
   // ------------------------------------------------------------
-  // Header responsiveness (1-line max)
+  // Header responsiveness: overflow-driven + hysteresis
   // ------------------------------------------------------------
+  let currentCompactLevel = 0;
+  let compactUpdateScheduled = false;
+  const MAX_COMPACT_LEVEL = 4;
+  const OVERFLOW_EPS = 1; // tolerate 1px rounding
+  const HYSTERESIS_SLACK = 14; // px slack before allowing downgrade
+  let lastPanelWidth = 0;
+
+  const applyCompactLevel = (level) => {
+    const value = String(level);
+    if (panel.dataset.cgCompact !== value) {
+      panel.dataset.cgCompact = value;
+    }
+  };
+
+  const getHeaderOverflow = (headerEl) => headerEl.scrollWidth - headerEl.clientWidth;
+
   const updateHeaderCompact = () => {
-    // If the header is hidden, no need to compute.
     if (panel.classList.contains('cg-controls-hidden')) {
-      panel.dataset.cgCompact = '0';
+      if (currentCompactLevel !== 0) {
+        currentCompactLevel = 0;
+        applyCompactLevel(0);
+      }
       return;
     }
 
     const headerEl = panel.querySelector('.cg-header');
     if (!headerEl) return;
 
-    // Progressive compaction: apply the smallest level that makes the header fit.
-    const levels = ['0', '1', '2', '3', '4'];
-    let chosen = '4';
-    for (const lv of levels) {
-      panel.dataset.cgCompact = lv;
-      // Force layout flush
-      headerEl.getBoundingClientRect();
-      if (headerEl.scrollWidth <= headerEl.clientWidth + 1) {
-        chosen = lv;
-        break;
+    let level = currentCompactLevel;
+    applyCompactLevel(level);
+    void headerEl.offsetWidth;
+
+    let overflow = getHeaderOverflow(headerEl);
+
+    if (overflow > OVERFLOW_EPS) {
+      while (level < MAX_COMPACT_LEVEL && overflow > OVERFLOW_EPS) {
+        level += 1;
+        applyCompactLevel(level);
+        void headerEl.offsetWidth;
+        overflow = getHeaderOverflow(headerEl);
       }
+      if (level !== currentCompactLevel) {
+        currentCompactLevel = level;
+      }
+      applyCompactLevel(currentCompactLevel);
+      return;
     }
-    panel.dataset.cgCompact = chosen;
+
+    while (level > 0) {
+      const candidate = level - 1;
+      applyCompactLevel(candidate);
+      void headerEl.offsetWidth;
+      const slack = headerEl.clientWidth - headerEl.scrollWidth;
+      if (slack >= HYSTERESIS_SLACK) {
+        level = candidate;
+        continue;
+      }
+      break;
+    }
+
+    if (level !== currentCompactLevel) {
+      currentCompactLevel = level;
+    }
+    applyCompactLevel(currentCompactLevel);
   };
+
+  const scheduleCompactUpdate = () => {
+    if (compactUpdateScheduled) return;
+    compactUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      compactUpdateScheduled = false;
+      updateHeaderCompact();
+    });
+  };
+
+  // ResizeObserver to track panel width changes
+  const panelResizeObserver = new ResizeObserver((entries) => {
+    const width = entries?.[0]?.contentRect?.width ?? 0;
+    if (Math.abs(width - lastPanelWidth) < 0.5) return;
+    lastPanelWidth = width;
+    scheduleCompactUpdate();
+  });
+  panelResizeObserver.observe(panel);
 
   const updateSearchButtons = (s = getState()) => {
     const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
@@ -796,7 +808,7 @@ function buildPanel(state, setState, getState) {
   // Let applyState call back into this so visibility updates whenever controls are hidden/shown.
   panel.__cgAfterApplyState = (s) => {
     updateSearchButtons(s);
-    updateHeaderCompact();
+    scheduleCompactUpdate();
     // Notify iframe about controls visibility state
     const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
     postToIframe('CG_CONTROLS_STATE', { hidden: effectiveHidden });
@@ -810,7 +822,7 @@ function buildPanel(state, setState, getState) {
     // Update tree-search-expanded class based on current view mode
     panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
     updateSearchButtons();
-    updateHeaderCompact();
+    scheduleCompactUpdate();
   };
 
   // Try to sync initial view mode from the embedded UI
@@ -837,7 +849,7 @@ function buildPanel(state, setState, getState) {
       // Update class to control mini-bar visibility
       panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
       updateSearchButtons();
-      updateHeaderCompact();
+      scheduleCompactUpdate();
     }
 
     // Handle request to show the main toolbar (from embedded search bar)
@@ -1070,6 +1082,9 @@ function buildPanel(state, setState, getState) {
   panel.__cgEscHandler = escHandler;
   window.addEventListener('keydown', escHandler, { capture: true });
 
+  // Store ResizeObserver for cleanup
+  panel.__cgPanelResizeObserver = panelResizeObserver;
+
   // Apply initial
   applyState(panel, state);
 
@@ -1109,6 +1124,9 @@ export function closeFloatingPanel() {
     }
     if (panel.__cgDocPointerHandler) {
       document.removeEventListener('pointerdown', panel.__cgDocPointerHandler, true);
+    }
+    if (panel.__cgPanelResizeObserver) {
+      panel.__cgPanelResizeObserver.disconnect();
     }
   } catch {
     // ignore

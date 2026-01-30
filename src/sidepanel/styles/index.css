@@ -731,52 +731,93 @@ html, body {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--git-toolbar-gap, 8px);
+  padding: var(--git-toolbar-pad, 10px 12px);
   background: white;
   border-bottom: 1px solid #e2e8f0;
-  overflow: visible;
+  overflow: hidden;
 }
 
+/* ============================================================
+   Git toolbar row layout: flex-start + margin-left:auto
+   This prevents negative gap / overlap issues at narrow widths.
+============================================================ */
 .git-toolbar-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: var(--git-row-gap, 10px);
   min-width: 0;
+  overflow: hidden;
 }
 
 .git-toolbar-row1 {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .git-toolbar-row2 {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .git-toolbar-row1-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
+  gap: var(--git-row-gap, 8px);
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .git-toolbar-row2-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  /*
-    Allow right-side controls to shrink instead of overflowing.
-    Row2 itself can wrap into at most 2 lines (search line + controls line).
-  */
-  flex: 0 1 auto;
+  gap: var(--git-row-gap, 6px);
+  flex-shrink: 0;
   min-width: 0;
   flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+/* ============================================================
+   Responsive compact levels (set via data attribute)
+   Level 0: default
+   Level 1: shrink sizes/gaps
+   Level 2: hide font control
+   Level 3: hide font control + filter toggle
+============================================================ */
+.git-toolbar[data-compact="1"] {
+  --git-toolbar-gap: 6px;
+  --git-toolbar-pad: 8px 10px;
+  --git-row-gap: 6px;
+  --git-btn-size: 26px;
+  --git-slider-width: 60px;
+}
+
+.git-toolbar[data-compact="2"] {
+  --git-toolbar-gap: 6px;
+  --git-toolbar-pad: 8px 10px;
+  --git-row-gap: 4px;
+  --git-btn-size: 26px;
+}
+.git-toolbar[data-compact="2"] .git-font-control {
+  display: none !important;
+}
+
+.git-toolbar[data-compact="3"] {
+  --git-toolbar-gap: 4px;
+  --git-toolbar-pad: 6px 8px;
+  --git-row-gap: 4px;
+  --git-btn-size: 24px;
+}
+.git-toolbar[data-compact="3"] .git-font-control {
+  display: none !important;
+}
+.git-toolbar[data-compact="3"] .git-toolbar-right {
+  display: none !important;
 }
 
 .git-collapse-btn {
-  width: 28px;
-  height: 28px;
+  width: var(--git-btn-size, 28px);
+  height: var(--git-btn-size, 28px);
   border: 1px solid #e2e8f0;
   background: #f8fafc;
   border-radius: 10px;
@@ -785,19 +826,19 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .git-collapse-btn:hover {
-  transform: translateY(-1px);
   background: #ffffff;
   border-color: #cbd5e1;
 }
 
 /* Show toolbar button (hamburger menu) - only visible when controls are hidden in embedded mode */
 .git-show-toolbar-btn {
-  width: 28px;
-  height: 28px;
+  width: var(--git-btn-size, 28px);
+  height: var(--git-btn-size, 28px);
   border: 1px solid #e2e8f0;
   background: #f8fafc;
   border-radius: 10px;
@@ -807,11 +848,11 @@ html, body {
   display: none; /* Hidden by default */
   align-items: center;
   justify-content: center;
-  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .git-show-toolbar-btn:hover {
-  transform: translateY(-1px);
   background: #ffffff;
   border-color: #cbd5e1;
 }
@@ -823,8 +864,8 @@ html, body {
 
 /* Close button in embedded mode (shown when controls are hidden) */
 .git-close-btn {
-  width: 28px;
-  height: 28px;
+  width: var(--git-btn-size, 28px);
+  height: var(--git-btn-size, 28px);
   border: 1px solid #e2e8f0;
   background: #f8fafc;
   border-radius: 10px;
@@ -834,11 +875,11 @@ html, body {
   display: none; /* Hidden by default */
   align-items: center;
   justify-content: center;
-  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .git-close-btn:hover {
-  transform: translateY(-1px);
   background: #fee2e2;
   border-color: #fca5a5;
   color: #dc2626;
@@ -852,25 +893,22 @@ html, body {
 .git-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
+  gap: var(--git-row-gap, 8px);
+  flex-shrink: 0;
 }
 
 .git-search {
-  /*
-    Responsive: search should shrink first (down to a practical minimum),
-    so right-side buttons never get clipped.
-  */
-  flex: 1 1 190px;
-  min-width: 110px;
+  flex: 1 1 auto;
+  min-width: 80px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 10px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   position: relative;
+  overflow: hidden;
 }
 
 /*
@@ -901,8 +939,15 @@ html, body {
   justify-content: flex-end;
 }
 
+/* Show secondary pop when toolbar-right is hidden */
+.git-toolbar[data-compact="3"] .git-search:hover .git-secondary-pop,
+.git-toolbar[data-compact="3"] .git-search:focus-within .git-secondary-pop {
+  display: block;
+}
+
+/* Legacy media query fallback - prefer data-compact attribute */
 @media (max-width: 380px) {
-  .git-toolbar-right {
+  .git-toolbar:not([data-compact]) .git-toolbar-right {
     display: none;
   }
 
@@ -917,6 +962,7 @@ html, body {
   font-size: 12px;
   color: #64748b;
   opacity: 0.9;
+  flex-shrink: 0;
 }
 
 .git-search-input {
@@ -930,13 +976,14 @@ html, body {
 }
 
 .git-search-clear {
-  width: 26px;
-  height: 26px;
+  width: var(--git-btn-size, 26px);
+  height: var(--git-btn-size, 26px);
   border: none;
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
   color: #64748b;
+  flex-shrink: 0;
   transition: background-color 0.15s ease;
 }
 
@@ -946,15 +993,14 @@ html, body {
 }
 
 .git-toolbar-right {
-  /* Allow the control group to shrink (range inputs can shrink), so nothing clips. */
-  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--git-row-gap, 6px);
+  flex-shrink: 0;
   min-width: 0;
   font-size: var(--gitFontSmall);
   color: #64748b;
   white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .git-filter-toggle {
@@ -965,12 +1011,13 @@ html, body {
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .git-filter-btn {
-  min-width: 32px;
-  height: 24px;
-  padding: 0 10px;
+  min-width: 28px;
+  height: var(--git-btn-size, 24px);
+  padding: 0 8px;
   border: none;
   background: transparent;
   border-radius: 999px;
@@ -978,15 +1025,17 @@ html, body {
   font-size: var(--gitFontSmall);
   font-weight: 600;
   color: #475569;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .git-font-control {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 10px;
-  height: 28px;
+  gap: 6px;
+  padding: 2px 8px;
+  height: var(--git-btn-size, 28px);
+  flex: 0 1 auto;
+  min-width: 0;
   border-radius: 999px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
@@ -997,25 +1046,15 @@ html, body {
   font-weight: 700;
   color: #475569;
   opacity: 0.9;
+  flex-shrink: 0;
 }
 
 .git-font-range {
-  /*
-    Responsive range width:
-    - prefers 90px
-    - can shrink down to ~46px when space is tight
-  */
-  width: 90px;
-  min-width: 46px;
-  flex: 0 1 90px;
+  flex: 0 1 var(--git-slider-width, 70px);
+  width: var(--git-slider-width, 70px);
+  min-width: 52px;
+  max-width: 100%;
   accent-color: #2563eb;
-}
-
-/* If space is extremely tight, hide low-priority font control first. */
-@media (max-width: 300px) {
-  .git-font-control {
-    display: none;
-  }
 }
 
 .git-filter-btn:hover {
