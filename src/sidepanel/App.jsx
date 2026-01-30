@@ -194,6 +194,14 @@ function App() {
           selectedPath={selectedPath}
           currentNodeId={currentNodeId}
           onNodeClick={handleNodeClick}
+          // In sidepanel tree mode, this toolbar becomes the ONLY bar (merged).
+          // In embedded (floating panel) mode, we hide view/refresh controls
+          // because the floating panel has its own control bar.
+          showPanelControls={!IS_EMBEDDED}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onRefresh={refreshData}
+          isLoading={isLoading}
         />
       );
     }
@@ -212,13 +220,10 @@ function App() {
 
   return (
     <div className={'app' + (IS_EMBEDDED ? ' embedded' : '')}>
-      {!IS_EMBEDDED && (
+      {!IS_EMBEDDED && (viewMode !== 'tree' || !conversationData || !!error) && (
         <Header
-          title="ChatGPT Graph"
-          conversationTitle={conversationData?.title}
           onRefresh={refreshData}
           isLoading={isLoading}
-          stats={treeStats}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />

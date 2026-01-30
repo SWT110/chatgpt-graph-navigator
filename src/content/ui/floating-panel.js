@@ -6,7 +6,7 @@
  * Features:
  * - Borderless floating window (rounded + shadow)
  * - Drag to move
- * - Resize (native CSS resize)
+ * - Resize (custom handle)
  * - Opacity slider
  * - Minimize / restore
  * - Lock (pin) to prevent drag/resize
@@ -90,8 +90,15 @@ function ensureStyles() {
       opacity: var(--cgAlpha, 0.96);
       transition: opacity .12s ease;
       overflow: hidden;
-      resize: both;
-      min-width: 320px;
+      /*
+        We intentionally DISABLE native CSS resizing.
+        Native resizing on a fixed element can lead to "stuck" pointer states
+        (cursor remains in resize mode) and jumpy behavior after releasing the mouse
+        on some platforms. We use a custom resize handle instead.
+      */
+      resize: none;
+      /* allow a narrower window while keeping controls usable */
+      min-width: 280px;
       min-height: 240px;
       max-width: min(92vw, 840px);
       max-height: 92vh;
@@ -103,10 +110,15 @@ function ensureStyles() {
     #${PANEL_ID}.cg-controls-hidden .cg-header {
       display: none;
     }
+    /* Allow the control popover to render outside the panel bounds (especially when minimized). */
+    #${PANEL_ID}.cg-popover-open {
+      overflow: visible;
+    }
     #${PANEL_ID}.cg-minimized {
       height: 44px !important;
       min-height: 44px !important;
       resize: none;
+      overflow: visible;
     }
     #${PANEL_ID}.cg-locked {
       resize: none;
@@ -210,6 +222,15 @@ function ensureStyles() {
       width: 96px;
       accent-color: #2563eb;
     }
+    /* Header needs to stay compact when the panel is narrow */
+    #${PANEL_ID} .cg-header .cg-opacity input[type="range"] {
+      width: 74px;
+    }
+    @media (max-width: 340px) {
+      #${PANEL_ID} .cg-header .cg-opacity input[type="range"] {
+        width: 56px;
+      }
+    }
     #${PANEL_ID} .cg-body {
       flex: 1 1 auto;
       min-height: 0;
@@ -224,33 +245,78 @@ function ensureStyles() {
       background: transparent;
     }
 
-    #${PANEL_ID} .cg-handle {
+    #${PANEL_ID} .cg-resizer {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 34px;
-      height: 34px;
-      border-radius: 12px;
-      border: 1px solid rgba(15, 23, 42, .12);
-      background: rgba(255, 255, 255, .92);
-      box-shadow: 0 8px 22px rgba(0,0,0,.18);
-      display: none;
+      right: 4px;
+      bottom: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 8px;
+      cursor: nwse-resize;
+      display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      z-index: 3;
-      opacity: 0.35;
-      transition: opacity 0.15s ease, transform 0.12s ease;
+      opacity: 0.12;
+      transition: opacity .12s ease, transform .12s ease;
+      z-index: 2;
+      background: rgba(255,255,255,0.35);
+      border: 1px solid rgba(15, 23, 42, .10);
+      pointer-events: auto;
     }
-    #${PANEL_ID} .cg-handle:hover {
-      opacity: 1;
+    #${PANEL_ID}:hover .cg-resizer {
+      opacity: 0.55;
+    }
+    #${PANEL_ID} .cg-resizer:hover {
+      opacity: 0.9;
       transform: translateY(-1px);
     }
-    #${PANEL_ID}.cg-controls-hidden .cg-handle {
+    #${PANEL_ID} .cg-resizer::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid rgba(15, 23, 42, .35);
+      border-bottom: 2px solid rgba(15, 23, 42, .35);
+      border-radius: 1px;
+      transform: translate(1px, 1px);
+    }
+    #${PANEL_ID}.cg-locked .cg-resizer,
+    #${PANEL_ID}.cg-minimized .cg-resizer,
+    #${PANEL_ID}.cg-through .cg-resizer {
+      display: none;
+    }
+
+    /*
+      Mini bar shown when the main toolbar is hidden.
+      - Provides a draggable strip
+      - Hosts the "search" (when needed) + "show toolbar" button
+      - Avoids overlapping the embedded UI (unlike a floating handle)
+    */
+    #${PANEL_ID} .cg-mini-bar {
+      height: 30px;
+      flex: 0 0 auto;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 10px;
+      background: rgba(255,255,255,.90);
+      border-bottom: 1px solid rgba(15, 23, 42, .08);
+      cursor: grab;
+    }
+    #${PANEL_ID}.cg-locked .cg-mini-bar {
+      cursor: default;
+    }
+    #${PANEL_ID}.cg-controls-hidden .cg-mini-bar {
       display: flex;
     }
-    #${PANEL_ID}.cg-through .cg-handle {
+    #${PANEL_ID}.cg-through .cg-mini-bar {
       display: none;
+    }
+    #${PANEL_ID} .cg-mini-left,
+    #${PANEL_ID} .cg-mini-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     #${PANEL_ID} .cg-popover {
@@ -327,6 +393,7 @@ function ensureStyles() {
     #${PANEL_ID}.cg-through .cg-peel {
       display: flex;
     }
+
   `.trim();
   document.documentElement.appendChild(style);
 }
@@ -356,26 +423,37 @@ function applyState(panel, state) {
     btn.classList.toggle('cg-active', !!state.clickThrough);
   });
   panel.querySelectorAll('[data-action="toggleToolbar"]').forEach((btn) => {
-    btn.classList.toggle('cg-active', !state.controlsHidden);
+    btn.classList.toggle('cg-active', !effectiveHidden);
   });
 
-  // Disable resize when locked
-  panel.style.resize = state.locked || state.minimized ? 'none' : 'both';
+  // Keep both opacity sliders (header + popover) in sync.
+  panel.querySelectorAll('input[data-action="opacity"]').forEach((input) => {
+    const v = String(state.opacity);
+    if (input.value !== v) input.value = v;
+  });
+
+  try {
+    panel.__cgAfterApplyState?.(state);
+  } catch {
+    // ignore
+  }
+
+  // Native resize is disabled; custom resizer handle is hidden via CSS when locked/minimized.
+  panel.style.resize = 'none';
 }
 
 function keepOnScreen(state) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = clamp(state.width, 320, Math.min(840, Math.floor(vw * 0.92)));
+  const w = clamp(state.width, 280, Math.min(840, Math.floor(vw * 0.92)));
   const h = clamp(state.height, 240, Math.floor(vh * 0.92));
   const x = clamp(state.x, 8, Math.max(8, vw - w - 8));
   const y = clamp(state.y, 8, Math.max(8, vh - h - 8));
   return { ...state, x, y, width: w, height: h };
 }
 
-function setupDragging(panel, getState, setState) {
-  const header = panel.querySelector('.cg-header');
-  if (!header) return;
+function setupDragging(panel, dragEl, getState, setState) {
+  if (!dragEl) return;
 
   let dragging = false;
   let startX = 0;
@@ -393,21 +471,21 @@ function setupDragging(panel, getState, setState) {
     );
   };
 
-  header.addEventListener('pointerdown', (e) => {
+  dragEl.addEventListener('pointerdown', (e) => {
     const state = getState();
     if (state.locked) return;
     if (isInteractive(e.target)) return;
     dragging = true;
-    header.setPointerCapture(e.pointerId);
+    dragEl.setPointerCapture(e.pointerId);
     startX = e.clientX;
     startY = e.clientY;
     originX = state.x;
     originY = state.y;
-    header.style.cursor = 'grabbing';
+    dragEl.style.cursor = 'grabbing';
     e.preventDefault();
   });
 
-  header.addEventListener('pointermove', (e) => {
+  dragEl.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
@@ -419,13 +497,13 @@ function setupDragging(panel, getState, setState) {
   const endDrag = () => {
     if (!dragging) return;
     dragging = false;
-    header.style.cursor = '';
+    dragEl.style.cursor = '';
     const s = getState();
     saveState({ x: s.x, y: s.y });
   };
 
-  header.addEventListener('pointerup', endDrag);
-  header.addEventListener('pointercancel', endDrag);
+  dragEl.addEventListener('pointerup', endDrag);
+  dragEl.addEventListener('pointercancel', endDrag);
 }
 
 function setupResizePersistence(panel, getState, setState) {
@@ -459,11 +537,32 @@ function buildPanel(state, setState, getState) {
         <button class="cg-view-btn" data-action="view" data-mode="graph" title="Graph">🗺️</button>
         <button class="cg-view-btn" data-action="view" data-mode="tree" title="Tree">🌿</button>
       </div>
+      <button class="cg-btn" data-action="refresh" title="Refresh">🔄</button>
     </div>
     <div class="cg-bar-right">
-      <button class="cg-btn" data-action="refresh" title="Refresh">🔄</button>
-      <button class="cg-btn" data-action="menu" title="More">⋯</button>
+      <button class="cg-btn cg-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
+      <div class="cg-opacity" title="Opacity">
+        <span style="font-size:12px; opacity:.85;">α</span>
+        <input data-action="opacity" type="range" min="0.25" max="1" step="0.05" value="${state.opacity}">
+      </div>
+      <button class="cg-btn" data-action="controls" title="Controls">🧰</button>
       <button class="cg-btn" data-action="hideToolbar" title="Hide toolbar">▾</button>
+      <button class="cg-btn" data-action="close" title="Close (Esc)">✕</button>
+    </div>
+  `.trim();
+
+  // Mini bar: shown when the main toolbar is hidden.
+  // Keeps the window draggable and exposes:
+  // - Search button (only when tree search row is collapsed)
+  // - Show toolbar button
+  const miniBar = document.createElement('div');
+  miniBar.className = 'cg-mini-bar';
+  miniBar.innerHTML = `
+    <div class="cg-mini-left">
+      <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
+    </div>
+    <div class="cg-mini-right">
+      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">▴</button>
     </div>
   `.trim();
 
@@ -481,11 +580,6 @@ function buildPanel(state, setState, getState) {
   peel.className = 'cg-peel';
   peel.title = 'Exit click-through (Alt+Shift+T)';
   peel.textContent = '↩';
-
-  const handle = document.createElement('button');
-  handle.className = 'cg-handle';
-  handle.title = 'Controls';
-  handle.textContent = '⋯';
 
   const popover = document.createElement('div');
   popover.className = 'cg-popover';
@@ -529,9 +623,13 @@ function buildPanel(state, setState, getState) {
   `.trim();
 
   panel.appendChild(header);
+  panel.appendChild(miniBar);
   panel.appendChild(body);
   panel.appendChild(peel);
-  panel.appendChild(handle);
+  const resizer = document.createElement('div');
+  resizer.className = 'cg-resizer';
+  resizer.title = 'Resize';
+  panel.appendChild(resizer);
   panel.appendChild(popover);
 
   const closePopover = () => {
@@ -555,10 +653,35 @@ function buildPanel(state, setState, getState) {
     }
   };
 
+  // ------------------------------------------------------------
+  // Quick UI state (tree search collapsed)
+  // ------------------------------------------------------------
+  const headerSearchBtn = header.querySelector('[data-action="search"]');
+  const miniSearchBtn = miniBar.querySelector('[data-action="search"]');
+  let currentViewMode = 'graph';
+  let treeToolbarCollapsed = false;
+
+  const updateSearchButtons = (s = getState()) => {
+    const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
+    const shouldShow = currentViewMode === 'tree' && !!treeToolbarCollapsed;
+
+    if (headerSearchBtn) {
+      headerSearchBtn.style.display = !effectiveHidden && shouldShow ? 'inline-flex' : 'none';
+    }
+    if (miniSearchBtn) {
+      miniSearchBtn.style.display = effectiveHidden && shouldShow ? 'inline-flex' : 'none';
+    }
+  };
+
+  // Let applyState call back into this so visibility updates whenever controls are hidden/shown.
+  panel.__cgAfterApplyState = (s) => updateSearchButtons(s);
+
   const setActiveViewMode = (mode) => {
+    currentViewMode = String(mode || 'graph');
     panel.querySelectorAll('[data-action="view"]').forEach((btn) => {
-      btn.classList.toggle('cg-active', btn.dataset.mode === mode);
+      btn.classList.toggle('cg-active', btn.dataset.mode === currentViewMode);
     });
+    updateSearchButtons();
   };
 
   // Try to sync initial view mode from the embedded UI
@@ -573,6 +696,12 @@ function buildPanel(state, setState, getState) {
     if (!data || typeof data !== 'object') return;
     if (data.type === 'CG_VIEW_MODE' && data.payload?.mode) {
       setActiveViewMode(String(data.payload.mode));
+      return;
+    }
+
+    if (data.type === 'CG_TREE_TOOLBAR_STATE') {
+      treeToolbarCollapsed = !!data.payload?.collapsed;
+      updateSearchButtons();
     }
   };
   panel.__cgMsgHandler = msgHandler;
@@ -648,7 +777,7 @@ function buildPanel(state, setState, getState) {
     });
   });
 
-  header.querySelector('[data-action="menu"]')?.addEventListener('click', (e) => {
+  header.querySelector('[data-action="controls"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
     togglePopover();
   });
@@ -676,58 +805,95 @@ function buildPanel(state, setState, getState) {
     });
   });
 
-  // Handle button: click to open popover; drag to move (when unlocked)
-  let hDragging = false;
-  let hMoved = false;
-  let hStartX = 0;
-  let hStartY = 0;
-  let hOriginX = 0;
-  let hOriginY = 0;
-
-  handle.addEventListener('pointerdown', (e) => {
-    const s = getState();
-    hDragging = false;
-    hMoved = false;
-    hStartX = e.clientX;
-    hStartY = e.clientY;
-    hOriginX = s.x;
-    hOriginY = s.y;
-
-    if (!s.locked && !s.clickThrough) {
-      handle.setPointerCapture(e.pointerId);
-    }
+  // Search button (shown when the embedded tree search row is collapsed).
+  // Both the header and the mini bar use the same action.
+  const runSearch = () => {
+    closePopover();
+    postToIframe('CG_TREE_FOCUS_SEARCH', {});
+  };
+  panel.querySelectorAll('[data-action="search"]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      runSearch();
+    });
   });
-  handle.addEventListener('pointermove', (e) => {
+
+  // Mini bar: restore the main toolbar.
+  // If the toolbar is hidden because the panel is locked, open the popover so the user can unlock.
+  miniBar.querySelector('[data-action="showToolbar"]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     const s = getState();
-    if (s.locked || s.clickThrough) return;
-    const dx = e.clientX - hStartX;
-    const dy = e.clientY - hStartY;
-    if (!hDragging) {
-      if (Math.abs(dx) + Math.abs(dy) < 4) return;
-      hDragging = true;
-      hMoved = true;
-      closePopover();
+    if (s.locked) {
+      openPopover();
+      return;
     }
-    const next = keepOnScreen({ ...s, x: hOriginX + dx, y: hOriginY + dy });
+    const next = { ...s, controlsHidden: false };
+    setState(next);
+    applyState(panel, next);
+    saveState({ controlsHidden: false });
+  });
+
+  // Custom resize handle (bottom-right)
+  let resizing = false;
+  let rStartX = 0;
+  let rStartY = 0;
+  let rStartW = 0;
+  let rStartH = 0;
+
+  const startResize = (e) => {
+    const s = getState();
+    if (s.locked || s.minimized || s.clickThrough) return;
+    closePopover();
+    resizing = true;
+    const rect = panel.getBoundingClientRect();
+    rStartX = e.clientX;
+    rStartY = e.clientY;
+    rStartW = rect.width;
+    rStartH = rect.height;
+    try {
+      resizer.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    // Avoid selecting text / triggering drag.
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const onResizeMove = (e) => {
+    if (!resizing) return;
+    if (e.buttons !== 1) return;
+    const dx = e.clientX - rStartX;
+    const dy = e.clientY - rStartY;
+    const s = getState();
+    const next = keepOnScreen({
+      ...s,
+      width: Math.round(rStartW + dx),
+      height: Math.round(rStartH + dy)
+    });
     setState(next);
     applyState(panel, next);
     e.preventDefault();
-  });
-  handle.addEventListener('pointerup', () => {
+  };
+
+  const endResize = () => {
+    if (!resizing) return;
+    resizing = false;
     const s = getState();
-    if (hMoved) {
-      saveState({ x: s.x, y: s.y });
-      return;
-    }
-    togglePopover();
-  });
+    saveState({ width: s.width, height: s.height, x: s.x, y: s.y });
+  };
+
+  resizer.addEventListener('pointerdown', startResize);
+  resizer.addEventListener('pointermove', onResizeMove);
+  resizer.addEventListener('pointerup', endResize);
+  resizer.addEventListener('pointercancel', endResize);
+  resizer.addEventListener('lostpointercapture', endResize);
 
   // Clicking outside closes the popover (but not the floating panel)
   const docPointerHandler = (e) => {
     if (!panel.classList.contains('cg-popover-open')) return;
     if (popover.contains(e.target)) return;
-    if (handle.contains(e.target)) return;
-    const menu = header.querySelector('[data-action="menu"]');
+    const menu = header.querySelector('[data-action="controls"]');
     if (menu && menu.contains(e.target)) return;
     closePopover();
   };
@@ -735,7 +901,9 @@ function buildPanel(state, setState, getState) {
   document.addEventListener('pointerdown', docPointerHandler, true);
 
   // Dragging + resize persistence
-  setupDragging(panel, getState, setState);
+  // Drag handles: full header when visible, and the mini bar when controls are hidden.
+  setupDragging(panel, header, getState, setState);
+  setupDragging(panel, miniBar, getState, setState);
   setupResizePersistence(panel, getState, setState);
 
   // Escape closes (only when panel exists)

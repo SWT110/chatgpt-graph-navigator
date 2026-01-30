@@ -1,48 +1,29 @@
 /**
- * 头部组件
+ * Minimal top toolbar (sidepanel only).
+ *
+ * User feedback:
+ * - Remove verbose title/stats ("ChatGPT Graph", branch counts, QA counts)
+ * - Keep it clean: buttons only
+ * - Must be responsive at narrow widths (no clipped buttons)
  */
+
 import React from 'react';
 
-function Header({
-  title,
-  conversationTitle,
+export default function Header({
   onRefresh,
   isLoading,
-  stats,
   viewMode = 'graph',
   onViewModeChange
 }) {
   return (
-    <header className="header">
-      <div className="header-left">
-        <h1 className="header-title">
-          <span className="header-icon">🌲</span>
-          {title}
-        </h1>
-        {conversationTitle && (
-          <p className="header-subtitle" title={conversationTitle}>
-            {conversationTitle.length > 30
-              ? conversationTitle.substring(0, 30) + '...'
-              : conversationTitle}
-          </p>
-        )}
-      </div>
-      <div className="header-right">
-        {stats && (
-          <div className="header-stats" title={`Q: ${stats.totalQuestions}, A: ${stats.totalAnswers}, Branches: ${stats.totalBranchPoints}`}>
-            <span className="stat-item">Q:{stats.totalQuestions}</span>
-            <span className="stat-item">A:{stats.totalAnswers}</span>
-            {stats.totalBranchPoints > 0 && (
-              <span className="stat-item branch">🌿{stats.totalBranchPoints}</span>
-            )}
-          </div>
-        )}
+    <header className="header header-toolbar" aria-label="ChatGPT Graph Toolbar">
+      <div className="header-toolbar-left">
         <div className="view-toggle" role="tablist" aria-label="View mode">
           <button
             className={'view-toggle-btn' + (viewMode === 'graph' ? ' active' : '')}
             onClick={() => onViewModeChange?.('graph')}
-            title="Mind map view"
-            aria-label="Mind map view"
+            title="Graph"
+            aria-label="Graph"
             type="button"
           >
             🗺️
@@ -50,18 +31,23 @@ function Header({
           <button
             className={'view-toggle-btn' + (viewMode === 'tree' ? ' active' : '')}
             onClick={() => onViewModeChange?.('tree')}
-            title="Git tree view"
-            aria-label="Git tree view"
+            title="Tree"
+            aria-label="Tree"
             type="button"
           >
             🌿
           </button>
         </div>
+      </div>
+
+      <div className="header-toolbar-right">
         <button
-          className="refresh-btn"
+          className="refresh-btn icon-btn"
           onClick={onRefresh}
           disabled={isLoading}
           title="Refresh"
+          aria-label="Refresh"
+          type="button"
         >
           <span className={isLoading ? 'spinning' : ''}>🔄</span>
         </button>
@@ -69,5 +55,3 @@ function Header({
     </header>
   );
 }
-
-export default Header;

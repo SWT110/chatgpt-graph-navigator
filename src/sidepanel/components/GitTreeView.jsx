@@ -13,6 +13,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const IS_EMBEDDED = (() => {
+  try {
+    return new URLSearchParams(window.location.search).get('embedded') === '1';
+  } catch {
+    return false;
+  }
+})();
+
 const PREVIEW_LIMIT = 110;
 const MAX_DEPTH = 80;
 
@@ -132,9 +140,18 @@ export default function GitTreeView({
   qaTree,
   selectedPath,
   currentNodeId,
-  onNodeClick
+  onNodeClick,
+  // Sidepanel-only topbar controls (merged bar): view toggle + refresh.
+  // In embedded (floating panel) mode, we hide these because the floating
+  // window already has its own control bar.
+  showPanelControls = true,
+  viewMode,
+  onViewModeChange,
+  onRefresh,
+  isLoading
 }) {
   const containerRef = useRef(null);
+  const searchInputRef = useRef(null);
   // Keep expand/collapse state stable when qaTree updates (e.g. selecting a node updates
   // selectedPath and rebuilds qaTree object). We only want to auto-expand on the first
   // load of a conversation structure, and then preserve user toggles.
@@ -142,7 +159,50 @@ export default function GitTreeView({
   const structureRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMode, setDisplayMode] = useState('all'); // all | q | a
+  // Toolbar layout: keep the top row clean (buttons only).
+  // Search + filters live in the second row and can be collapsed.
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
+  const [fontScale, setFontScale] = useState(1);
   const [expanded, setExpanded] = useState(() => new Set());
+
+  // Embedded mode (floating window): allow parent to open/focus the search row.
+  useEffect(() => {
+    if (!IS_EMBEDDED) return;
+
+    const handler = (event) => {
+      const data = event?.data;
+      if (!data || typeof data !== 'object') return;
+      const { type, payload } = data;
+
+      if (type === 'CG_TREE_OPEN_SEARCH' || type === 'CG_TREE_FOCUS_SEARCH') {
+        setToolbarCollapsed(false);
+        // Focus after the row becomes visible.
+        setTimeout(() => searchInputRef.current?.focus?.(), 60);
+      }
+
+      if (type === 'CG_TREE_SET_TOOLBAR_COLLAPSED') {
+        const collapsed = !!payload?.collapsed;
+        setToolbarCollapsed(collapsed);
+        if (!collapsed) setTimeout(() => searchInputRef.current?.focus?.(), 60);
+      }
+    };
+
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // Tell the parent whether the search row is collapsed (so it can show a search icon in the floating header).
+  useEffect(() => {
+    if (!IS_EMBEDDED) return;
+    try {
+      window.parent?.postMessage(
+        { type: 'CG_TREE_TOOLBAR_STATE', payload: { collapsed: !!toolbarCollapsed } },
+        '*'
+      );
+    } catch {
+      // ignore
+    }
+  }, [toolbarCollapsed]);
 
   // Persist display mode for convenience
   useEffect(() => {
@@ -164,6 +224,50 @@ export default function GitTreeView({
       // ignore
     }
   }, [displayMode]);
+
+  // Persist toolbar collapsed state
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await chrome.storage.local.get(['gitTreeToolbarCollapsed']);
+        if (typeof res?.gitTreeToolbarCollapsed === 'boolean') {
+          setToolbarCollapsed(res.gitTreeToolbarCollapsed);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      chrome.storage.local.set({ gitTreeToolbarCollapsed: toolbarCollapsed });
+    } catch {
+      // ignore
+    }
+  }, [toolbarCollapsed]);
+
+  // Persist font scale for Git Tree
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await chrome.storage.local.get(['gitTreeFontScale']);
+        const v = Number(res?.gitTreeFontScale);
+        if (!Number.isFinite(v)) return;
+        setFontScale(Math.min(1.35, Math.max(0.85, v)));
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      chrome.storage.local.set({ gitTreeFontScale: fontScale });
+    } catch {
+      // ignore
+    }
+  }, [fontScale]);
 
   const { qItems, aItems } = useMemo(
     () => buildSearchIndex(qaTree, displayMode),
@@ -590,63 +694,199 @@ export default function GitTreeView({
   const rootEl = renderRoot();
 
   return (
-    <div className="git-tree" ref={containerRef}>
+    <div
+      className="git-tree"
+      ref={containerRef}
+      style={{ '--gitScale': String(fontScale) }}
+    >
       <div className="git-toolbar">
-        <div className="git-search">
-          <span className="git-search-icon">⌕</span>
-          <input
-            className="git-search-input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={onSearchKeyDown}
-            placeholder={placeholder}
-          />
-          {searchQuery && (
-            <button
-              className="git-search-clear"
-              onClick={() => setSearchQuery('')}
-              title="Clear"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-        <div className="git-toolbar-right">
-          <div className="git-filter-toggle" role="tablist" aria-label="Show nodes">
-            <button
-              type="button"
-              className={'git-filter-btn' + (displayMode === 'all' ? ' active' : '')}
-              onClick={() => setDisplayMode('all')}
-              title="Show Q + A"
-            >
-              QA
-            </button>
-            <button
-              type="button"
-              className={'git-filter-btn' + (displayMode === 'q' ? ' active' : '')}
-              onClick={() => setDisplayMode('q')}
-              title="Only Q"
-            >
-              Q
-            </button>
-            <button
-              type="button"
-              className={'git-filter-btn' + (displayMode === 'a' ? ' active' : '')}
-              onClick={() => setDisplayMode('a')}
-              title="Only A"
-            >
-              A
-            </button>
-          </div>
+        {/* Row 1: sidepanel-only (merged header) */}
+        {showPanelControls && (
+          <div className="git-toolbar-row git-toolbar-row1">
+            <div className="git-toolbar-left">
+              <div className="view-toggle" role="tablist" aria-label="View mode">
+                <button
+                  className={'view-toggle-btn' + (viewMode === 'graph' ? ' active' : '')}
+                  onClick={() => onViewModeChange?.('graph')}
+                  title="Graph"
+                  aria-label="Graph"
+                  type="button"
+                >
+                  🗺️
+                </button>
+                <button
+                  className={'view-toggle-btn' + (viewMode === 'tree' ? ' active' : '')}
+                  onClick={() => onViewModeChange?.('tree')}
+                  title="Tree"
+                  aria-label="Tree"
+                  type="button"
+                >
+                  🌿
+                </button>
+              </div>
 
-          {query ? (
-            <span className="git-match-count">
-              {matchIds.length} match{matchIds.length === 1 ? '' : 'es'}
-            </span>
-          ) : (
-            <span className="git-hint">Tip: Enter to jump to the first match</span>
-          )}
-        </div>
+              <button
+                className="refresh-btn icon-btn"
+                onClick={onRefresh}
+                disabled={isLoading}
+                title="Refresh"
+                aria-label="Refresh"
+                type="button"
+              >
+                <span className={isLoading ? 'spinning' : ''}>🔄</span>
+              </button>
+            </div>
+
+            <div className="git-toolbar-row1-right">
+              <button
+                type="button"
+                className={'git-collapse-btn' + (toolbarCollapsed ? ' collapsed' : '')}
+                onClick={() => setToolbarCollapsed((v) => !v)}
+                title={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
+                aria-label={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
+              >
+                {toolbarCollapsed ? '▸' : '▾'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Row 2: search + filter + font size (collapsible) */}
+        {!toolbarCollapsed && (
+          <div className="git-toolbar-row git-toolbar-row2">
+            <div className="git-search">
+              <span className="git-search-icon">⌕</span>
+              <input
+                className="git-search-input"
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={onSearchKeyDown}
+                placeholder={placeholder}
+              />
+              {searchQuery && (
+                <button
+                  className="git-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear"
+                  aria-label="Clear"
+                  type="button"
+                >
+                  ✕
+                </button>
+              )}
+
+              {/*
+                Compact mode: when width is tight, show filter + font size only
+                when the user hovers/focuses the search box.
+              */}
+              <div className="git-secondary-pop" aria-label="Controls">
+                <div className="git-secondary-section" aria-label="Show nodes">
+                  <div className="git-filter-toggle" role="tablist" aria-label="Show nodes">
+                    <button
+                      type="button"
+                      className={'git-filter-btn' + (displayMode === 'all' ? ' active' : '')}
+                      onClick={() => setDisplayMode('all')}
+                      title="Show Q + A"
+                    >
+                      QA
+                    </button>
+                    <button
+                      type="button"
+                      className={'git-filter-btn' + (displayMode === 'q' ? ' active' : '')}
+                      onClick={() => setDisplayMode('q')}
+                      title="Only Q"
+                    >
+                      Q
+                    </button>
+                    <button
+                      type="button"
+                      className={'git-filter-btn' + (displayMode === 'a' ? ' active' : '')}
+                      onClick={() => setDisplayMode('a')}
+                      title="Only A"
+                    >
+                      A
+                    </button>
+                  </div>
+                </div>
+
+                <div className="git-secondary-section" aria-label="Font size">
+                  <div className="git-font-control" title="Font size">
+                    <span className="git-font-label">Aa</span>
+                    <input
+                      className="git-font-range"
+                      type="range"
+                      min="0.85"
+                      max="1.35"
+                      step="0.05"
+                      value={fontScale}
+                      onChange={(e) => setFontScale(Number(e.target.value))}
+                      aria-label="Font size"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="git-toolbar-row2-right" aria-label="Controls">
+              <div className="git-toolbar-right" aria-label="Controls">
+                <div className="git-filter-toggle" role="tablist" aria-label="Show nodes">
+                  <button
+                    type="button"
+                    className={'git-filter-btn' + (displayMode === 'all' ? ' active' : '')}
+                    onClick={() => setDisplayMode('all')}
+                    title="Show Q + A"
+                  >
+                    QA
+                  </button>
+                  <button
+                    type="button"
+                    className={'git-filter-btn' + (displayMode === 'q' ? ' active' : '')}
+                    onClick={() => setDisplayMode('q')}
+                    title="Only Q"
+                  >
+                    Q
+                  </button>
+                  <button
+                    type="button"
+                    className={'git-filter-btn' + (displayMode === 'a' ? ' active' : '')}
+                    onClick={() => setDisplayMode('a')}
+                    title="Only A"
+                  >
+                    A
+                  </button>
+                </div>
+
+                <div className="git-font-control" title="Font size">
+                  <span className="git-font-label">Aa</span>
+                  <input
+                    className="git-font-range"
+                    type="range"
+                    min="0.85"
+                    max="1.35"
+                    step="0.05"
+                    value={fontScale}
+                    onChange={(e) => setFontScale(Number(e.target.value))}
+                    aria-label="Font size"
+                  />
+                </div>
+              </div>
+
+              {/* Embedded (floating window): collapse button belongs to the END of the search row (after font size). */}
+              {IS_EMBEDDED && (
+                <button
+                  type="button"
+                  className={'git-collapse-btn' + (toolbarCollapsed ? ' collapsed' : '')}
+                  onClick={() => setToolbarCollapsed(true)}
+                  title="Hide search & filters"
+                  aria-label="Hide search & filters"
+                >
+                  ▾
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {rootEl ? (
