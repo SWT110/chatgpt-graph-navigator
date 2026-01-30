@@ -290,6 +290,7 @@ function ensureStyles() {
       - Provides a draggable strip
       - Hosts the "search" (when needed) + "show toolbar" button
       - Avoids overlapping the embedded UI (unlike a floating handle)
+      - HIDDEN when tree search row is expanded (to avoid double bars)
     */
     #${PANEL_ID} .cg-mini-bar {
       height: 30px;
@@ -306,7 +307,8 @@ function ensureStyles() {
     #${PANEL_ID}.cg-locked .cg-mini-bar {
       cursor: default;
     }
-    #${PANEL_ID}.cg-controls-hidden .cg-mini-bar {
+    /* Show mini bar only when controls are hidden AND tree search is collapsed (or not in tree mode) */
+    #${PANEL_ID}.cg-controls-hidden:not(.cg-tree-search-expanded) .cg-mini-bar {
       display: flex;
     }
     #${PANEL_ID}.cg-through .cg-mini-bar {
@@ -562,7 +564,8 @@ function buildPanel(state, setState, getState) {
       <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
     </div>
     <div class="cg-mini-right">
-      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">▴</button>
+      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">☰</button>
+      <button class="cg-btn" data-action="close" title="Close">✕</button>
     </div>
   `.trim();
 
@@ -674,19 +677,30 @@ function buildPanel(state, setState, getState) {
   };
 
   // Let applyState call back into this so visibility updates whenever controls are hidden/shown.
-  panel.__cgAfterApplyState = (s) => updateSearchButtons(s);
+  panel.__cgAfterApplyState = (s) => {
+    updateSearchButtons(s);
+    // Notify iframe about controls visibility state
+    const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
+    postToIframe('CG_CONTROLS_STATE', { hidden: effectiveHidden });
+  };
 
   const setActiveViewMode = (mode) => {
     currentViewMode = String(mode || 'graph');
     panel.querySelectorAll('[data-action="view"]').forEach((btn) => {
       btn.classList.toggle('cg-active', btn.dataset.mode === currentViewMode);
     });
+    // Update tree-search-expanded class based on current view mode
+    panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
     updateSearchButtons();
   };
 
   // Try to sync initial view mode from the embedded UI
   iframe.addEventListener('load', () => {
     postToIframe('CG_REQUEST_VIEW_MODE', {});
+    // Send initial controls state
+    const s = getState();
+    const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
+    postToIframe('CG_CONTROLS_STATE', { hidden: effectiveHidden });
   });
 
   // Listen for view mode updates from iframe
@@ -701,7 +715,28 @@ function buildPanel(state, setState, getState) {
 
     if (data.type === 'CG_TREE_TOOLBAR_STATE') {
       treeToolbarCollapsed = !!data.payload?.collapsed;
+      // Update class to control mini-bar visibility
+      panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
       updateSearchButtons();
+    }
+
+    // Handle request to show the main toolbar (from embedded search bar)
+    if (data.type === 'CG_SHOW_TOOLBAR') {
+      const s = getState();
+      if (s.locked) {
+        // If locked, open the popover so user can unlock
+        openPopover();
+      } else {
+        const next = { ...s, controlsHidden: false };
+        setState(next);
+        applyState(panel, next);
+        saveState({ controlsHidden: false });
+      }
+    }
+
+    // Handle request to close the floating panel (from embedded UI)
+    if (data.type === 'CG_CLOSE_PANEL') {
+      closeFloatingPanel();
     }
   };
   panel.__cgMsgHandler = msgHandler;

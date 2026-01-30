@@ -164,6 +164,8 @@ export default function GitTreeView({
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
   const [fontScale, setFontScale] = useState(1);
   const [expanded, setExpanded] = useState(() => new Set());
+  // Track whether the floating panel's controls are hidden (embedded mode only)
+  const [controlsHidden, setControlsHidden] = useState(false);
 
   // Embedded mode (floating window): allow parent to open/focus the search row.
   useEffect(() => {
@@ -184,6 +186,11 @@ export default function GitTreeView({
         const collapsed = !!payload?.collapsed;
         setToolbarCollapsed(collapsed);
         if (!collapsed) setTimeout(() => searchInputRef.current?.focus?.(), 60);
+      }
+
+      // Track whether the floating panel's controls are hidden
+      if (type === 'CG_CONTROLS_STATE') {
+        setControlsHidden(!!payload?.hidden);
       }
     };
 
@@ -745,7 +752,7 @@ export default function GitTreeView({
                 title={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
                 aria-label={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
               >
-                {toolbarCollapsed ? '▸' : '▾'}
+                {toolbarCollapsed ? '☰' : '▾'}
               </button>
             </div>
           </div>
@@ -883,6 +890,44 @@ export default function GitTreeView({
                 >
                   ▾
                 </button>
+              )}
+
+              {/* Embedded (floating window): show toolbar button when controls are hidden */}
+              {IS_EMBEDDED && controlsHidden && (
+                <>
+                  <button
+                    type="button"
+                    className="git-show-toolbar-btn visible"
+                    onClick={() => {
+                      // Tell parent to show the main toolbar
+                      try {
+                        window.parent?.postMessage({ type: 'CG_SHOW_TOOLBAR' }, '*');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    title="Show toolbar"
+                    aria-label="Show toolbar"
+                  >
+                    ☰
+                  </button>
+                  <button
+                    type="button"
+                    className="git-close-btn visible"
+                    onClick={() => {
+                      // Tell parent to close the floating panel
+                      try {
+                        window.parent?.postMessage({ type: 'CG_CLOSE_PANEL' }, '*');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </>
               )}
             </div>
           </div>
