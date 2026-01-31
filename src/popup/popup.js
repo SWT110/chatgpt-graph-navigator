@@ -323,9 +323,10 @@ async function loadStatusContent() {
 
   try {
     // 获取存储的 token
-    const result = await chrome.storage.local.get(['accessToken', 'tokenTimestamp']);
+    const result = await chrome.storage.local.get(['accessToken', 'tokenTimestamp', 'tokenSource']);
 
     const hasToken = !!result.accessToken;
+    const tokenSource = result.tokenSource || 'manual'; // 'auto' 或 'manual'
     const tokenAge = result.tokenTimestamp ? Date.now() - result.tokenTimestamp : null;
     const tokenAgeMinutes = tokenAge ? Math.floor(tokenAge / 1000 / 60) : null;
     const tokenAgeHours = tokenAge ? Math.floor(tokenAge / 1000 / 60 / 60) : null;
@@ -339,20 +340,23 @@ async function loadStatusContent() {
         <div class="status">
           <div class="status-item">
             <span class="status-label">${i18n('statusLabel')}</span>
-            <span class="status-value error">${i18n('notConfigured')}</span>
+            <span class="status-value warning">${i18n('waitingForToken') || 'Waiting for token...'}</span>
           </div>
         </div>
 
         <div class="help">
           <p>
-            <strong>${i18n('welcomeTitle')}</strong><br><br>
-            ${i18n('welcomeMessage')}
+            <strong>${i18n('autoTokenTitle') || 'Auto Token Capture'}</strong><br><br>
+            ${i18n('autoTokenMessage') || 'Token will be automatically captured when you use ChatGPT. Just refresh the ChatGPT page or send a message.'}
+          </p>
+          <p style="margin-top: 8px; color: #6b7280;">
+            ${i18n('manualTokenHint') || 'Or you can manually configure the token below.'}
           </p>
         </div>
 
         <div class="actions">
-          <button class="primary" id="setup-btn">
-            ${i18n('setupTokenBtn')}
+          <button class="secondary" id="setup-btn">
+            ${i18n('manualSetupBtn') || 'Manual Setup'}
           </button>
         </div>
       `;
@@ -377,6 +381,11 @@ async function loadStatusContent() {
       return;
     }
 
+    // Token 来源标签
+    const sourceLabel = tokenSource === 'auto'
+      ? (i18n('tokenSourceAuto') || '🤖 Auto')
+      : (i18n('tokenSourceManual') || '✏️ Manual');
+
     // 状态区域
     statusHtml += `
       <div class="status">
@@ -387,8 +396,8 @@ async function loadStatusContent() {
           </span>
         </div>
         <div class="status-item">
-          <span class="status-label">${i18n('extensionLabel')}</span>
-          <span class="status-value success">${i18n('statusActive')}</span>
+          <span class="status-label">${i18n('tokenSourceLabel') || 'Source'}</span>
+          <span class="status-value">${sourceLabel}</span>
         </div>
       </div>
     `;
@@ -426,7 +435,7 @@ async function loadStatusContent() {
       </div>
       <div class="actions">
         <button class="secondary" id="update-btn">
-          ${tokenExpired ? i18n('updateTokenBtn') : i18n('changeTokenBtn')}
+          ${i18n('manualSetupBtn') || 'Manual Setup'}
         </button>
         <button class="secondary" id="clear-btn">
           ${i18n('clearTokenBtn')}
@@ -438,7 +447,13 @@ async function loadStatusContent() {
     if (tokenExpired) {
       statusHtml += `
         <div class="help">
-          <p>${i18n('tokenExpiredHelp')}</p>
+          <p>${i18n('tokenExpiredAutoHelp') || 'Token expired. It will be auto-renewed when you use ChatGPT, or you can refresh the page.'}</p>
+        </div>
+      `;
+    } else if (tokenSource === 'auto') {
+      statusHtml += `
+        <div class="help">
+          <p>${i18n('autoTokenReadyHelp') || 'Token was automatically captured. It will be auto-renewed when needed.'}</p>
         </div>
       `;
     } else {
@@ -509,8 +524,14 @@ async function loadStatusContent() {
     if (clearBtn) {
       clearBtn.addEventListener('click', async () => {
         if (confirm(i18n('confirmClearToken'))) {
-          await chrome.storage.local.remove(['accessToken', 'tokenTimestamp']);
-          loadStatusContent(); // 重新加载内容
+          // 通过 background 清除 token（同时清除内存缓存，确保自动捕获能重新工作）
+          try {
+            await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.CLEAR_TOKEN });
+          } catch (e) {
+            // 兜底：直接清 storage
+            await chrome.storage.local.remove(['accessToken', 'tokenTimestamp', 'tokenSource', 'tokenInfo']);
+          }
+          loadStatusContent();
         }
       });
     }

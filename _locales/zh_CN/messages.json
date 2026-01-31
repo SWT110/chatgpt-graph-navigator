@@ -416,5 +416,36 @@
   },
   "openFloatingBtn": {
     "message": "悬浮窗"
+  },
+
+  "waitingForToken": {
+    "message": "等待获取令牌..."
+  },
+  "autoTokenTitle": {
+    "message": "自动获取令牌"
+  },
+  "autoTokenMessage": {
+    "message": "当您使用 ChatGPT 时，令牌会被自动获取。只需刷新 ChatGPT 页面或发送一条消息即可。"
+  },
+  "manualTokenHint": {
+    "message": "或者您也可以手动配置令牌。"
+  },
+  "manualSetupBtn": {
+    "message": "手动设置"
+  },
+  "tokenSourceLabel": {
+    "message": "来源"
+  },
+  "tokenSourceAuto": {
+    "message": "🤖 自动"
+  },
+  "tokenSourceManual": {
+    "message": "✏️ 手动"
+  },
+  "tokenExpiredAutoHelp": {
+    "message": "令牌已过期。当您使用 ChatGPT 时会自动更新，或者您可以刷新页面。"
+  },
+  "autoTokenReadyHelp": {
+    "message": "令牌已自动获取。需要时会自动更新。"
   }
 }

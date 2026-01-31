@@ -214,7 +214,8 @@ saveBtn.addEventListener('click', async () => {
     // 保存到 chrome.storage
     await chrome.storage.local.set({
       accessToken: validatedToken,
-      tokenTimestamp: Date.now()
+      tokenTimestamp: Date.now(),
+      tokenSource: 'manual'
     });
 
     showAlert('success', i18n('tokenSaved'));

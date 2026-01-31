@@ -416,5 +416,36 @@
   },
   "openFloatingBtn": {
     "message": "Floating Window"
+  },
+
+  "waitingForToken": {
+    "message": "Waiting for token..."
+  },
+  "autoTokenTitle": {
+    "message": "Auto Token Capture"
+  },
+  "autoTokenMessage": {
+    "message": "Token will be automatically captured when you use ChatGPT. Just refresh the ChatGPT page or send a message."
+  },
+  "manualTokenHint": {
+    "message": "Or you can manually configure the token below."
+  },
+  "manualSetupBtn": {
+    "message": "Manual Setup"
+  },
+  "tokenSourceLabel": {
+    "message": "Source"
+  },
+  "tokenSourceAuto": {
+    "message": "🤖 Auto"
+  },
+  "tokenSourceManual": {
+    "message": "✏️ Manual"
+  },
+  "tokenExpiredAutoHelp": {
+    "message": "Token expired. It will be auto-renewed when you use ChatGPT, or you can refresh the page."
+  },
+  "autoTokenReadyHelp": {
+    "message": "Token was automatically captured. It will be auto-renewed when needed."
   }
 }

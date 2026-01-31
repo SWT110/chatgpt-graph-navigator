@@ -4,6 +4,7 @@
 
 import { MESSAGE_TYPES } from '../../shared/constants.js';
 import { db } from '../database/db.js';
+import { getTokenStatus, clearToken } from '../auth/token-capture.js';
 
 /**
  * 设置消息监听器
@@ -55,6 +56,12 @@ async function handleMessage(message, sender) {
 
     case MESSAGE_TYPES.ERROR:
       return await handleError(payload, sender);
+
+    case MESSAGE_TYPES.GET_TOKEN_STATUS:
+      return await handleGetTokenStatus();
+
+    case MESSAGE_TYPES.CLEAR_TOKEN:
+      return await handleClearToken();
 
     default:
       throw new Error(`Unknown message type: ${type}`);
@@ -242,6 +249,25 @@ async function handleError(errorData, sender) {
   // TODO: 可以在这里添加错误上报逻辑
 
   return { acknowledged: true };
+}
+
+/**
+ * 处理获取 token 状态请求
+ * @returns {Promise<Object>}
+ */
+async function handleGetTokenStatus() {
+  console.log('[Background] Getting token status');
+  return await getTokenStatus();
+}
+
+/**
+ * 处理清除 token 请求
+ * @returns {Promise<Object>}
+ */
+async function handleClearToken() {
+  console.log('[Background] Clearing token');
+  const success = await clearToken();
+  return { success };
 }
 
 /**

@@ -6,11 +6,13 @@
  * 3. 缓存管理
  * 4. 消息中转
  * 5. 侧边栏管理
+ * 6. Token 自动捕获
  */
 
 import { setupMessageListener } from './messaging/message-handler.js';
 import { db } from './database/db.js';
 import { cache } from './cache/cache-manager.js';
+import { initTokenCapture, getTokenStatus } from './auth/token-capture.js';
 
 /**
  * 初始化 Service Worker
@@ -22,6 +24,23 @@ async function initialize() {
     // 打开数据库
     await db.open();
     console.log('[Background] ✓ Database opened');
+
+    // 初始化 Token 自动捕获
+    const tokenCaptureReady = initTokenCapture();
+    if (tokenCaptureReady) {
+      console.log('[Background] ✓ Token auto-capture enabled');
+      // 检查是否已有 token
+      const tokenStatus = await getTokenStatus();
+      if (tokenStatus.hasToken && !tokenStatus.isExpired) {
+        console.log('[Background] ✓ Valid token found (source:', tokenStatus.source, ')');
+      } else if (tokenStatus.hasToken && tokenStatus.isExpired) {
+        console.log('[Background] ⚠ Token expired, waiting for auto-capture');
+      } else {
+        console.log('[Background] ⚠ No token found, waiting for auto-capture');
+      }
+    } else {
+      console.warn('[Background] ⚠ Token auto-capture not available');
+    }
 
     // 设置消息监听器
     setupMessageListener();

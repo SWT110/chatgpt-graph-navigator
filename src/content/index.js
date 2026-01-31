@@ -13,7 +13,7 @@
 
 import { MESSAGE_TYPES, CONFIG } from '../shared/constants.js';
 import { log, extractConversationId, delay } from '../shared/utils.js';
-import { loadToken, hasToken } from './auth/token-manager.js';
+import { loadToken, hasToken, initTokenListener } from './auth/token-manager.js';
 import { fetchConversationWithRetry } from './api/conversation.js';
 import { parseMapping, getNodeStatistics } from './parser/mapping-parser.js';
 import { extractBranches, buildRounds, analyzeBranchStructure } from './parser/branch-extractor.js';
@@ -286,6 +286,9 @@ async function main() {
     showExtensionReloadWarning();
     return;
   }
+
+  // 初始化 token 监听器（监听自动捕获的 token 更新）
+  initTokenListener();
 
   // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
   setupMessageListener();
