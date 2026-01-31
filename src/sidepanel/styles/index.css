@@ -180,6 +180,35 @@ html, body {
   transition: background-color 0.2s;
 }
 
+/* MiniMap toggle button (left of refresh) */
+.minimap-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.minimap-btn:hover {
+  background-color: #f1f5f9;
+}
+
+.minimap-btn.active {
+  background-color: #eef2ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.minimap-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .refresh-btn:hover {
   background-color: #f1f5f9;
 }
@@ -240,6 +269,86 @@ html, body {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ==================== ConversationGraph MiniMap（小地图）增强 ====================
+ * - 悬浮窗模式默认隐藏（由 React 逻辑控制）
+ * - 侧边栏模式默认更小 + 底部显示（由 React 逻辑控制）
+ * - 侧边栏模式支持拖动：仅顶部 handle 区域可拖动
+ */
+.cg-minimap {
+  border-radius: 8px;
+}
+
+.cg-minimap-draggable {
+  position: relative;
+  user-select: none;
+}
+
+.cg-minimap-draggable::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.cg-minimap-draggable::after {
+  content: '⋮⋮';
+  position: absolute;
+  top: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.35);
+  letter-spacing: 2px;
+  pointer-events: none;
+}
+
+.cg-minimap-draggable:hover {
+  cursor: grab;
+}
+
+.cg-minimap-dragging {
+  cursor: grabbing !important;
+}
+
+.cg-graph-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.cg-toolbar-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.cg-toolbar-btn:hover {
+  background: #f8fafc;
+}
+
+.cg-toolbar-btn.active {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
 /* ==================== Round 节点样式 ==================== */

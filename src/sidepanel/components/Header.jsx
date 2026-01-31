@@ -13,7 +13,9 @@ export default function Header({
   onRefresh,
   isLoading,
   viewMode = 'graph',
-  onViewModeChange
+  onViewModeChange,
+  miniMapVisible = false,
+  onToggleMiniMap
 }) {
   return (
     <header className="header header-toolbar" aria-label="ChatGPT Graph Toolbar">
@@ -41,6 +43,17 @@ export default function Header({
       </div>
 
       <div className="header-toolbar-right">
+        {viewMode === 'graph' && typeof onToggleMiniMap === 'function' && (
+          <button
+            className={'minimap-btn' + (miniMapVisible ? ' active' : '')}
+            onClick={onToggleMiniMap}
+            title={miniMapVisible ? 'Hide minimap' : 'Show minimap'}
+            aria-label={miniMapVisible ? 'Hide minimap' : 'Show minimap'}
+            type="button"
+          >
+            🧭
+          </button>
+        )}
         <button
           className="refresh-btn icon-btn"
           onClick={onRefresh}

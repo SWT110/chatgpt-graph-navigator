@@ -2,11 +2,12 @@
  * 对话图谱组件
  * 使用 React Flow + QA 树实现可视化
  */
-import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Controls,
   MiniMap,
+  Panel,
   Background,
   useNodesState,
   useEdgesState,
@@ -35,6 +36,12 @@ const defaultEdgeOptions = {
   }
 };
 
+// Sidepanel 右侧栏 vs 悬浮窗（iframe embedded）
+const IS_EMBEDDED = new URLSearchParams(window.location.search).get('embedded') === '1';
+
+const MINIMAP_HANDLE_HEIGHT = 18;
+const MINIMAP_POS_KEY = 'cg:minimap:pos';
+
 /**
  * 图谱内部组件（需要 ReactFlow context）
  */
@@ -45,12 +52,114 @@ function GraphContent({
   onNodeClick,
   onNodeDoubleClick,
   onNodeContextMenu,
-  containerHeight
+  containerHeight,
+  graphContainerRef,
+  showMiniMap,
+  onToggleMiniMap
 }) {
   const { fitView, setCenter, getZoom, getViewport } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [expandedQNodes, setExpandedQNodes] = useState(new Set());
+
+  const [miniMapOffset, setMiniMapOffset] = useState(() => {
+    if (IS_EMBEDDED) return { x: 0, y: 0 };
+    try {
+      const raw = localStorage.getItem(MINIMAP_POS_KEY);
+      if (!raw) return { x: 0, y: 0 };
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
+        return { x: parsed.x, y: parsed.y };
+      }
+    } catch {
+      // ignore
+    }
+    return { x: 0, y: 0 };
+  });
+
+  const miniMapOffsetRef = useRef(miniMapOffset);
+  useEffect(() => {
+    miniMapOffsetRef.current = miniMapOffset;
+  }, [miniMapOffset]);
+
+  // Draggable minimap (sidebar mode only)
+  useEffect(() => {
+    if (IS_EMBEDDED || !showMiniMap) return;
+
+    const root = graphContainerRef?.current || document;
+    const panel = root.querySelector?.('[data-testid="rf__minimap"]');
+    if (!panel) return;
+
+    panel.classList.add('cg-minimap');
+    panel.classList.add('cg-minimap-draggable');
+
+    const drag = {
+      dragging: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startOffsetX: 0,
+      startOffsetY: 0
+    };
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      const rect = panel.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      // 只允许在顶部“拖拽条”区域拖动，避免和 minimap 交互冲突
+      if (y > MINIMAP_HANDLE_HEIGHT) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      drag.dragging = true;
+      drag.pointerId = e.pointerId;
+      drag.startX = e.clientX;
+      drag.startY = e.clientY;
+      drag.startOffsetX = miniMapOffsetRef.current.x;
+      drag.startOffsetY = miniMapOffsetRef.current.y;
+      panel.classList.add('cg-minimap-dragging');
+
+      try {
+        panel.setPointerCapture?.(e.pointerId);
+      } catch {
+        // ignore
+      }
+    };
+
+    const onPointerMove = (e) => {
+      if (!drag.dragging) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      setMiniMapOffset({ x: drag.startOffsetX + dx, y: drag.startOffsetY + dy });
+    };
+
+    const endDrag = () => {
+      if (!drag.dragging) return;
+      drag.dragging = false;
+      panel.classList.remove('cg-minimap-dragging');
+      try {
+        localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(miniMapOffsetRef.current));
+      } catch {
+        // ignore
+      }
+    };
+
+    panel.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+
+    return () => {
+      panel.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      panel.classList.remove('cg-minimap-dragging');
+      panel.classList.remove('cg-minimap-draggable');
+      // cg-minimap class is harmless; keep it
+    };
+  }, [showMiniMap, graphContainerRef]);
 
   // 标记是否已经初始化过视图
   const hasInitializedView = useRef(false);
@@ -216,13 +325,41 @@ function GraphContent({
         showInteractive={false}
         position="bottom-right"
       />
-      <MiniMap
-        nodeColor={nodeColor}
-        nodeStrokeWidth={3}
-        zoomable
-        pannable
-        position="top-right"
-      />
+      {/* Embedded (floating panel) has no top header, so we keep a small toggle here.
+          Sidepanel uses the header button (left of refresh). */}
+      {IS_EMBEDDED && typeof onToggleMiniMap === 'function' && (
+        <Panel position="top-left" className="cg-graph-toolbar">
+          <button
+            className={`cg-toolbar-btn ${showMiniMap ? 'active' : ''}`}
+            onClick={onToggleMiniMap}
+            title={showMiniMap ? 'Hide minimap' : 'Show minimap'}
+            aria-label={showMiniMap ? 'Hide minimap' : 'Show minimap'}
+            type="button"
+          >
+            🧭
+          </button>
+        </Panel>
+      )}
+
+      {showMiniMap && (
+        <MiniMap
+          className={IS_EMBEDDED ? 'cg-minimap embedded' : 'cg-minimap'}
+          style={
+            IS_EMBEDDED
+              ? { width: 140, height: 105 }
+              : {
+                  width: 160,
+                  height: 120,
+                  transform: `translate(${miniMapOffset.x}px, ${miniMapOffset.y}px)`
+                }
+          }
+          nodeColor={nodeColor}
+          nodeStrokeWidth={3}
+          zoomable
+          pannable
+          position="bottom-left"
+        />
+      )}
       <Background variant="dots" gap={20} size={1} color="#e5e7eb" />
     </ReactFlow>
   );
@@ -237,7 +374,9 @@ function ConversationGraph({
   currentNodeId,
   onNodeClick,
   onNodeDoubleClick,
-  onNodeContextMenu
+  onNodeContextMenu,
+  showMiniMap = !IS_EMBEDDED,
+  onToggleMiniMap
 }) {
   const containerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(400);
@@ -276,6 +415,9 @@ function ConversationGraph({
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeContextMenu={onNodeContextMenu}
           containerHeight={containerHeight}
+          graphContainerRef={containerRef}
+          showMiniMap={showMiniMap}
+          onToggleMiniMap={onToggleMiniMap}
         />
       </ReactFlowProvider>
     </div>

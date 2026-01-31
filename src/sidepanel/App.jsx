@@ -17,8 +17,35 @@ const IS_EMBEDDED = (() => {
   }
 })();
 
+const MINIMAP_VISIBLE_KEY = IS_EMBEDDED ? 'cg:minimap:visible:embedded' : 'cg:minimap:visible:sidebar';
+
 function App() {
   const [viewMode, setViewMode] = useState('graph');
+
+  // MiniMap visibility is global (header button) so we keep it here.
+  // Embedded mode defaults to hidden.
+  const [miniMapVisible, setMiniMapVisible] = useState(() => {
+    try {
+      const saved = localStorage.getItem(MINIMAP_VISIBLE_KEY);
+      if (saved === '0') return false;
+      if (saved === '1') return true;
+    } catch {
+      // ignore
+    }
+    return !IS_EMBEDDED;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MINIMAP_VISIBLE_KEY, miniMapVisible ? '1' : '0');
+    } catch {
+      // ignore
+    }
+  }, [miniMapVisible]);
+
+  const toggleMiniMap = useCallback(() => {
+    setMiniMapVisible((v) => !v);
+  }, []);
   const {
     conversationData,
     isLoading,
@@ -214,6 +241,8 @@ function App() {
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={handleNodeContextMenu}
+        showMiniMap={miniMapVisible}
+        onToggleMiniMap={toggleMiniMap}
       />
     );
   };
@@ -226,6 +255,8 @@ function App() {
           isLoading={isLoading}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          miniMapVisible={miniMapVisible}
+          onToggleMiniMap={toggleMiniMap}
         />
       )}
 

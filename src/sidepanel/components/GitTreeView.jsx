@@ -519,9 +519,54 @@ export default function GitTreeView({
   // Scroll active node into view inside panel
   useEffect(() => {
     if (!currentNodeId || !containerRef.current) return;
-    const el = containerRef.current.querySelector(`[data-node-id="${currentNodeId}"]`);
-    if (!el) return;
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    let cancelled = false;
+
+    // IMPORTANT:
+    // `Element.scrollIntoView()` may scroll ALL ancestor scroll containers, including
+    // the outer `.git-tree` (overflow:hidden). That can make the top toolbar "slide"
+    // horizontally when we auto-focus a deeply indented node.
+    //
+    // We only want to scroll the real list container (`.git-root`) vertically.
+    const scrollToActive = (attempt = 0) => {
+      if (cancelled) return;
+
+      const root = containerRef.current?.querySelector?.('.git-root');
+      if (!root) return;
+
+      const el = root.querySelector?.(`[data-node-id="${currentNodeId}"]`);
+      if (!el) {
+        if (attempt < 5) requestAnimationFrame(() => scrollToActive(attempt + 1));
+        return;
+      }
+
+      const rootRect = root.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+
+      const deltaTop = (elRect.top - rootRect.top) - (rootRect.height / 2 - elRect.height / 2);
+      const targetTop = root.scrollTop + deltaTop;
+      const maxTop = Math.max(0, root.scrollHeight - root.clientHeight);
+      const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
+
+      // Horizontal: ONLY adjust if the node is actually out of view.
+      // This avoids the annoying "sideways sliding" effect when clicking items
+      // that are already visible.
+      let targetLeft = root.scrollLeft;
+      const leftOverflow = rootRect.left - elRect.left;
+      const rightOverflow = elRect.right - rootRect.right;
+      if (leftOverflow > 0) targetLeft = root.scrollLeft - leftOverflow;
+      else if (rightOverflow > 0) targetLeft = root.scrollLeft + rightOverflow;
+
+      const maxLeft = Math.max(0, root.scrollWidth - root.clientWidth);
+      const clampedLeft = Math.max(0, Math.min(targetLeft, maxLeft));
+
+      root.scrollTo({ top: clampedTop, left: clampedLeft, behavior: 'smooth' });
+    };
+
+    requestAnimationFrame(() => scrollToActive(0));
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentNodeId]);
 
   const toggleExpand = useCallback((id) => {
