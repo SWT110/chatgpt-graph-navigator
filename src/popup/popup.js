@@ -9,6 +9,12 @@ import { MESSAGE_TYPES } from '../shared/constants.js';
 // 折叠设置
 let collapseSettings = { ...DEFAULT_COLLAPSE_SETTINGS };
 
+// Side panel UI zoom (CSS zoom). This is independent from the webpage zoom.
+let sidepanelUiZoom = 1;
+const SIDEPANEL_ZOOM_MIN = 60; // %
+const SIDEPANEL_ZOOM_MAX = 140; // %
+const SIDEPANEL_ZOOM_STEP = 5; // %
+
 /**
  * 加载折叠设置
  */
@@ -23,6 +29,40 @@ async function loadCollapseSettings() {
     console.warn('Failed to load collapse settings:', e);
   }
   return collapseSettings;
+}
+
+/**
+ * Load sidepanel UI zoom
+ */
+async function loadSidepanelZoom() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.SIDEPANEL_UI_ZOOM);
+    const stored = result[STORAGE_KEYS.SIDEPANEL_UI_ZOOM];
+    const z = Number(stored);
+    if (Number.isFinite(z) && z >= 0.5 && z <= 2.5) {
+      sidepanelUiZoom = z;
+    } else {
+      sidepanelUiZoom = 1;
+    }
+  } catch (e) {
+    console.warn('Failed to load sidepanel zoom:', e);
+    sidepanelUiZoom = 1;
+  }
+  return sidepanelUiZoom;
+}
+
+/**
+ * Save sidepanel UI zoom
+ */
+async function saveSidepanelZoom(nextZoom) {
+  const z = Number(nextZoom);
+  if (!Number.isFinite(z)) return;
+  sidepanelUiZoom = Math.max(0.5, Math.min(2.5, z));
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.SIDEPANEL_UI_ZOOM]: sidepanelUiZoom });
+  } catch (e) {
+    console.error('Failed to save sidepanel zoom:', e);
+  }
 }
 
 /**
@@ -88,6 +128,75 @@ function createCollapseSettingsHTML() {
       </div>
     </div>
   `;
+}
+
+/**
+ * Create sidepanel zoom settings panel HTML
+ */
+function createSidepanelZoomSettingsHTML() {
+  const percent = Math.round((Number(sidepanelUiZoom) || 1) * 100);
+  const clamped = Math.max(SIDEPANEL_ZOOM_MIN, Math.min(SIDEPANEL_ZOOM_MAX, percent));
+  return `
+    <div class="collapse-settings">
+      <h3>🧩 ${i18n('sidepanelZoomTitle') || 'Side Panel UI Zoom'}</h3>
+
+      <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div style="display:flex; justify-content: space-between; align-items:center; width:100%;">
+          <span class="status-label">${i18n('sidepanelZoomLabel') || 'Zoom (independent from webpage)'}</span>
+          <span class="zoom-value" id="sidepanel-zoom-value">${clamped}%</span>
+        </div>
+
+        <div class="zoom-row">
+          <input
+            type="range"
+            id="sidepanel-zoom-range"
+            min="${SIDEPANEL_ZOOM_MIN}"
+            max="${SIDEPANEL_ZOOM_MAX}"
+            step="${SIDEPANEL_ZOOM_STEP}"
+            value="${clamped}"
+          />
+          <button class="mini-btn" id="sidepanel-zoom-reset">${i18n('reset') || 'Reset'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bind events for sidepanel zoom settings
+ */
+function bindSidepanelZoomSettingsEvents() {
+  const range = document.getElementById('sidepanel-zoom-range');
+  const valueEl = document.getElementById('sidepanel-zoom-value');
+  const resetBtn = document.getElementById('sidepanel-zoom-reset');
+
+  const updateValue = (pct) => {
+    if (valueEl) valueEl.textContent = `${pct}%`;
+  };
+
+  if (range) {
+    range.addEventListener('input', () => {
+      const pct = parseInt(range.value, 10);
+      updateValue(pct);
+    });
+
+    range.addEventListener('change', async () => {
+      const pct = parseInt(range.value, 10);
+      if (!Number.isFinite(pct)) return;
+      const z = pct / 100;
+      await saveSidepanelZoom(z);
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      if (range) {
+        range.value = '100';
+        updateValue(100);
+      }
+      await saveSidepanelZoom(1);
+    });
+  }
 }
 
 /**
@@ -196,6 +305,12 @@ async function loadStatus() {
   // 加载折叠设置
   await loadCollapseSettings();
 
+  // Load side panel UI zoom setting
+  await loadSidepanelZoom();
+
+  // Load sidepanel zoom setting
+  await loadSidepanelZoom();
+
   // 创建语言切换器（只创建一次）
   createLanguageSwitcher();
 
@@ -244,6 +359,8 @@ async function loadStatusContent() {
 
       // 折叠设置面板（即使没有 token 也显示）
       statusHtml += createCollapseSettingsHTML();
+      // Side panel UI zoom (always available)
+      statusHtml += createSidepanelZoomSettingsHTML();
 
       container.innerHTML = statusHtml;
 
@@ -253,6 +370,9 @@ async function loadStatusContent() {
 
       // 绑定折叠设置事件
       bindCollapseSettingsEvents();
+
+      // 绑定侧边栏缩放事件
+      bindSidepanelZoomSettingsEvents();
 
       return;
     }
@@ -331,11 +451,16 @@ async function loadStatusContent() {
 
     // 折叠设置面板
     statusHtml += createCollapseSettingsHTML();
+    // Side panel UI zoom
+    statusHtml += createSidepanelZoomSettingsHTML();
 
     container.innerHTML = statusHtml;
 
     // 绑定折叠设置事件
     bindCollapseSettingsEvents();
+
+    // 绑定侧边栏缩放事件
+    bindSidepanelZoomSettingsEvents();
 
     // 绑定事件
     const openSidePanelBtn = document.getElementById('open-sidepanel-btn');

@@ -320,6 +320,39 @@
       opacity: 0.5;
       pointer-events: none;
     }
+
+    /* Side panel zoom settings */
+    .zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .zoom-row input[type="range"] {
+      flex: 1;
+    }
+
+    .zoom-value {
+      width: 52px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .mini-btn {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .mini-btn:hover {
+      background: #d1d5db;
+    }
   </style>
 </head>
 <body>

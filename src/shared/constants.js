@@ -53,7 +53,9 @@ export const STORAGE_KEYS = {
   CURRENT_CONVERSATION: 'current_conversation',
   CACHE_PREFIX: 'cache_',
   SETTINGS: 'settings',
-  COLLAPSE_SETTINGS: 'chatgpt_graph_collapse_settings'
+  COLLAPSE_SETTINGS: 'chatgpt_graph_collapse_settings',
+  // Side panel UI scale (CSS zoom). Stored per extension-id, independent from webpage zoom.
+  SIDEPANEL_UI_ZOOM: 'chatgpt_graph_sidepanel_ui_zoom'
 };
 
 // 内容折叠默认设置
