@@ -584,6 +584,7 @@ export default function GitTreeView({
   }, [query, keepSet]);
 
   const handleJump = useCallback((id, nodeType) => {
+    console.log('GitTreeView: handleJump', id, nodeType);
     onNodeClick?.(id, { messageId: id, nodeType });
   }, [onNodeClick]);
 

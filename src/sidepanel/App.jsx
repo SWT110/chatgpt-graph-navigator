@@ -150,6 +150,7 @@ function App() {
 
   // 节点点击处理
   const handleNodeClick = useCallback((nodeId, nodeData) => {
+    // if you find this msg, congrats! you are debugging the side panel :)
     console.log('[SidePanel] Node clicked:', nodeId, nodeData);
     setCurrentNodeId(nodeId);
 

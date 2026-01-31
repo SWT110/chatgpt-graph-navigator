@@ -221,7 +221,7 @@ function findMessageElement(messageId) {
   let targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
 
   // 2. 通过 data-turn-id 属性查找（ChatGPT 新版本可能使用这个）
-  if (!targetElement) {
+  if (!targetElement) { 
     targetElement = document.querySelector(`[data-turn-id="${messageId}"]`);
   }
 
@@ -238,13 +238,19 @@ function findMessageElement(messageId) {
   }
 
   // 4. 尝试模糊匹配（消息 ID 的前缀匹配）
+  const MIN_SAFE_LENGTH = 5;
   if (!targetElement) {
     const allArticles = document.querySelectorAll('article[data-turn-id]');
     for (const article of allArticles) {
       const turnId = article.getAttribute('data-turn-id');
-      if (turnId && (turnId.startsWith(messageId) || messageId.startsWith(turnId))) {
-        targetElement = article;
-        break;
+      if (turnId && messageId && 
+        turnId.length >= MIN_SAFE_LENGTH && 
+        messageId.length >= MIN_SAFE_LENGTH
+      ) {
+          if (turnId.startsWith(messageId) || messageId.startsWith(turnId)) {
+            targetElement = article;
+            break;
+          }
       }
     }
   }
