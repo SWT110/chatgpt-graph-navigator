@@ -217,6 +217,7 @@ async function scrollToMessage(messageId) {
  * @returns {HTMLElement|null}
  */
 function findMessageElement(messageId) {
+  //TODO: 排除bug的风险
   // 1. 通过 data-message-id 属性查找
   let targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
 
