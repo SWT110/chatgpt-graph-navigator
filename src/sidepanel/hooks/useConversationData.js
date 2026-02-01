@@ -146,10 +146,50 @@ export function useConversationData() {
 
   const runtimeListenerSetRef = useRef(false);
 
+  // 用于防止重复触发 content script 刷新
+  const pendingContentRefreshRef = useRef(new Set());
+
+  /**
+   * 触发 content script 抓取数据（不等待结果）
+   * 数据抓取完成后会通过 DATA_READY 消息通知
+   */
+  const triggerContentRefresh = useCallback(async (conversationId) => {
+    // 防止重复触发
+    if (pendingContentRefreshRef.current.has(conversationId)) {
+      console.log('[Hook] Content refresh already pending for:', conversationId);
+      return;
+    }
+
+    const tabs = await queryActiveTab();
+    const tab = tabs?.[0];
+    if (!tab?.id) return;
+
+    pendingContentRefreshRef.current.add(conversationId);
+
+    // 5秒后自动清除 pending 状态（防止卡死）
+    setTimeout(() => {
+      pendingContentRefreshRef.current.delete(conversationId);
+    }, 5000);
+
+    try {
+      console.log('[Hook] Triggering content script to fetch:', conversationId);
+      await sendMessageToTab(tab.id, {
+        type: MESSAGE_TYPES.REFRESH_DATA,
+        payload: { conversationId }
+      });
+      console.log('[Hook] ✓ Content refresh triggered for:', conversationId);
+    } catch (e) {
+      console.warn('[Hook] Content refresh failed:', e?.message);
+      pendingContentRefreshRef.current.delete(conversationId);
+    }
+  }, []);
+
   /**
    * 从 background 拉取指定 conversationId 的数据
+   * @param {string} conversationId - 对话 ID
+   * @param {boolean} skipContentTrigger - 是否跳过触发 content script（避免循环）
    */
-  const fetchConversation = useCallback(async (conversationId) => {
+  const fetchConversation = useCallback(async (conversationId, skipContentTrigger = false) => {
     if (!conversationId) {
       setConversationData(null);
       setIsLoading(false);
@@ -169,17 +209,35 @@ export function useConversationData() {
         const graphData = transformToGraphData(response.data);
         setConversationData(graphData);
         setActiveConversationId(conversationId);
+        // 成功获取数据，清除 pending 状态
+        pendingContentRefreshRef.current.delete(conversationId);
       } else {
+        // DB 中没有数据，触发 content script 去抓取
+        // DATA_READY 消息会在抓取完成后触发重新 fetch
+        if (!skipContentTrigger) {
+          console.log('[Hook] Conversation not in DB, triggering content script');
+          triggerContentRefresh(conversationId);
+        }
         setConversationData(null);
       }
     } catch (err) {
-      console.error('[Hook] Failed to fetch conversation:', err);
-      setError(err.message || 'Failed to load conversation data');
-      setConversationData(null);
+      const isNotFound = err.message?.includes('not found');
+
+      if (isNotFound && !skipContentTrigger) {
+        // DB 中没有数据，触发 content script 去抓取
+        console.log('[Hook] Conversation not found, triggering content script');
+        triggerContentRefresh(conversationId);
+        // 不设置 error，等待 DATA_READY
+        setConversationData(null);
+      } else {
+        console.error('[Hook] Failed to fetch conversation:', err);
+        setError(err.message || 'Failed to load conversation data');
+        setConversationData(null);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [triggerContentRefresh]);
 
   /**
    * 根据当前活动 Tab 选择要展示的 conversation
@@ -248,9 +306,15 @@ export function useConversationData() {
         const convId = message.payload?.conversationId;
         console.log('[Hook] DATA_READY received for:', convId);
 
+        // 清除 pending 状态
+        if (convId) {
+          pendingContentRefreshRef.current.delete(convId);
+        }
+
         if (convId) {
           // 优先更新为通知里的对话（通常是当前 tab 切换后的对话）
-          fetchConversation(convId);
+          // skipContentTrigger=true 因为数据已经在 DB 中了
+          fetchConversation(convId, true);
         } else {
           syncWithActiveTab();
         }
@@ -262,7 +326,8 @@ export function useConversationData() {
 
         // 仅当更新的是当前对话时才刷新；否则交给 tab 同步逻辑
         if (convId && convId === activeConversationId) {
-          fetchConversation(convId);
+          // skipContentTrigger=true 因为数据已经在 DB 中了
+          fetchConversation(convId, true);
         }
       }
 
