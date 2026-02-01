@@ -666,9 +666,9 @@ function buildPanel(state, setState, getState) {
   body.appendChild(iframe);
 
   const peel = document.createElement('button');
-  peel.className = 'cg-peel';
+  peel.className = 'cg-peel'; 
   peel.title = 'Exit click-through (Alt+Shift+T)';
-  peel.textContent = '↩';
+  peel.innerHTML = `<img class="cg-icon" src="${iconUrl('transparency.svg')}" alt="Click-through">`;
 
   const popover = document.createElement('div');
   popover.className = 'cg-popover';
