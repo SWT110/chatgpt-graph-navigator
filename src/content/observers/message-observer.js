@@ -24,6 +24,9 @@ export class MessageObserver {
     this.pendingIdObservers = new WeakMap();
     // 用于 stop/reset 时批量清理的引用集合
     this.pendingIdArticles = new Set();
+
+    // 定期扫描定时器（兜底机制）
+    this.periodicScanInterval = null;
   }
 
   /**
@@ -80,6 +83,10 @@ export class MessageObserver {
     };
 
     this.observer.observe(targetNode, config);
+
+    // 5. 启动定期扫描（兜底机制）
+    this._startPeriodicScan();
+
     log('info', 'MessageObserver', 'Message observer started');
   }
 
@@ -91,6 +98,10 @@ export class MessageObserver {
       this.observer.disconnect();
       this.observer = null;
     }
+
+    // 停止定期扫描
+    this._stopPeriodicScan();
+
     this.processedMessages.clear();
     this.pendingMessages.forEach(timer => clearTimeout(timer));
     this.pendingMessages.clear();
@@ -400,6 +411,57 @@ export class MessageObserver {
    */
   isObserving() {
     return this.isRunning;
+  }
+
+  /**
+   * 启动定期扫描（兜底机制）
+   * 每隔 3 秒扫描一次 DOM，检查是否有遗漏的未处理消息
+   * 仅在非流式输出期间执行扫描
+   * @private
+   */
+  _startPeriodicScan() {
+    this._stopPeriodicScan();
+
+    const SCAN_INTERVAL_MS = 3000;
+
+    this.periodicScanInterval = setInterval(() => {
+      // 流式输出期间跳过扫描（避免处理到不完整的消息）
+      if (this._isMessageStreaming()) {
+        return;
+      }
+
+      const articles = document.querySelectorAll('article');
+      let newCount = 0;
+
+      articles.forEach(article => {
+        const uniqueId = getUniqueMessageId(article);
+
+        // 跳过无 ID、placeholder、已处理的消息
+        if (!uniqueId || uniqueId.startsWith('placeholder-') || this.processedMessages.has(uniqueId)) {
+          return;
+        }
+
+        newCount++;
+        this._processNewArticle(article);
+      });
+
+      if (newCount > 0) {
+        log('info', 'MessageObserver', `Periodic scan found ${newCount} new message(s)`);
+      }
+    }, SCAN_INTERVAL_MS);
+
+    log('debug', 'MessageObserver', 'Periodic scan started (interval: 3s)');
+  }
+
+  /**
+   * 停止定期扫描
+   * @private
+   */
+  _stopPeriodicScan() {
+    if (this.periodicScanInterval) {
+      clearInterval(this.periodicScanInterval);
+      this.periodicScanInterval = null;
+    }
   }
 
   /**
