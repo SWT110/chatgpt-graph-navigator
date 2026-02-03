@@ -232,9 +232,9 @@ Here is a quick overview of the codebase to help you navigate:
 We have exciting plans to turn this tool into a comprehensive Knowledge Management System for AI conversations.
 
 #### ✅ Completed
-- [√] **Core:** Interactive Graph View & Git-Style Timeline.
-- [√] **UI:** Integrated Sidebar & Floating Window modes.
-- [√] **Utils:** Message auto-folding for clean workspace.
+- [x] **Core:** Interactive Graph View & Git-Style Timeline.
+- [x] **UI:** Integrated Sidebar & Floating Window modes.
+- [x] **Utils:** Message auto-folding for clean workspace.
 
 #### 🚧 In Progress & Planned
 
