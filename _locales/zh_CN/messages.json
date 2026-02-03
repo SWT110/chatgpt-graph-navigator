@@ -456,5 +456,21 @@
   },
   "autoTokenReadyHelp": {
     "message": "令牌已自动获取。需要时会自动更新。"
+  },
+
+  "debugLogTitle": {
+    "message": "开发者选项"
+  },
+  "debugLogEnabled": {
+    "message": "启用调试日志"
+  },
+  "debugLogVerbose": {
+    "message": "详细信息 (log/debug/info)"
+  },
+  "debugLogWarn": {
+    "message": "警告"
+  },
+  "debugLogError": {
+    "message": "错误"
   }
 }

@@ -12,7 +12,7 @@
  */
 
 import { MESSAGE_TYPES, CONFIG } from '../shared/constants.js';
-import { log, extractConversationId, delay } from '../shared/utils.js';
+import { log, extractConversationId, delay, initDebugLogSetting, getDebugLogEnabled } from '../shared/utils.js';
 import { loadToken, hasToken, initTokenListener } from './auth/token-manager.js';
 import { fetchConversationWithRetry } from './api/conversation.js';
 import { parseMapping, getNodeStatistics } from './parser/mapping-parser.js';
@@ -487,6 +487,9 @@ function highlightElement(element) {
  * 主函数
  */
 async function main() {
+  // Initialize debug log setting first (before any logging)
+  await initDebugLogSetting();
+
   log('info', 'Content', 'Content script loaded');
 
   // 检查扩展上下文是否有效
@@ -851,6 +854,11 @@ async function sendToBackground(type, payload, retries = 3) {
  * @param {Object} conversationData - 对话数据
  */
 function logDebugInfo(conversationData) {
+  // Only log debug info if debug logging is enabled
+  if (!getDebugLogEnabled()) {
+    return;
+  }
+
   console.group('🌲 ChatGPT Graph - Conversation Data');
 
   console.log('📊 Statistics:', {
@@ -892,6 +900,11 @@ function logDebugInfo(conversationData) {
  * @param {Object} stats - 对话统计信息
  */
 function logIncrementalUpdate(messageData, stats) {
+  // Only log debug info if debug logging is enabled
+  if (!getDebugLogEnabled()) {
+    return;
+  }
+
   console.group('🆕 ChatGPT Graph - Incremental Update');
 
   console.log('📨 New Message:', {

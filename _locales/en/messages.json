@@ -456,5 +456,21 @@
   },
   "autoTokenReadyHelp": {
     "message": "Token was automatically captured. It will be auto-renewed when needed."
+  },
+
+  "debugLogTitle": {
+    "message": "Developer Options"
+  },
+  "debugLogEnabled": {
+    "message": "Enable debug logging"
+  },
+  "debugLogVerbose": {
+    "message": "Verbose (log/debug/info)"
+  },
+  "debugLogWarn": {
+    "message": "Warnings"
+  },
+  "debugLogError": {
+    "message": "Errors"
   }
 }

@@ -60,7 +60,11 @@ export const STORAGE_KEYS = {
   SETTINGS: 'settings',
   COLLAPSE_SETTINGS: 'chatgpt_graph_collapse_settings',
   // Side panel UI scale (CSS zoom). Stored per extension-id, independent from webpage zoom.
-  SIDEPANEL_UI_ZOOM: 'chatgpt_graph_sidepanel_ui_zoom'
+  SIDEPANEL_UI_ZOOM: 'chatgpt_graph_sidepanel_ui_zoom',
+  // Debug log enabled (default: false)
+  DEBUG_LOG_ENABLED: 'chatgpt_graph_debug_log_enabled',
+  // Debug log levels (default: all enabled when debug is on)
+  DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels'
 };
 
 // 内容折叠默认设置

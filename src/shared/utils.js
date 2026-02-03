@@ -2,7 +2,84 @@
  * 通用工具函数
  */
 
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX, STORAGE_KEYS } from './constants.js';
+
+// Debug log enabled state (cached in memory, default: false)
+let debugLogEnabled = false;
+
+// Debug log levels (which levels to show when debug is enabled)
+// Default: all enabled
+let debugLogLevels = {
+  verbose: true,  // log, debug, info
+  warn: true,
+  error: true
+};
+
+/**
+ * Initialize debug log setting from storage
+ */
+export async function initDebugLogSetting() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      const result = await chrome.storage.local.get([
+        STORAGE_KEYS.DEBUG_LOG_ENABLED,
+        STORAGE_KEYS.DEBUG_LOG_LEVELS
+      ]);
+      debugLogEnabled = result[STORAGE_KEYS.DEBUG_LOG_ENABLED] === true;
+      if (result[STORAGE_KEYS.DEBUG_LOG_LEVELS]) {
+        debugLogLevels = { ...debugLogLevels, ...result[STORAGE_KEYS.DEBUG_LOG_LEVELS] };
+      }
+    }
+  } catch (e) {
+    // Ignore errors (e.g., in non-extension context)
+  }
+}
+
+/**
+ * Set debug log enabled state
+ * @param {boolean} enabled
+ */
+export async function setDebugLogEnabled(enabled) {
+  debugLogEnabled = enabled;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.DEBUG_LOG_ENABLED]: enabled });
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
+/**
+ * Get debug log enabled state
+ * @returns {boolean}
+ */
+export function getDebugLogEnabled() {
+  return debugLogEnabled;
+}
+
+/**
+ * Set debug log levels
+ * @param {Object} levels - { verbose: boolean, warn: boolean, error: boolean }
+ */
+export async function setDebugLogLevels(levels) {
+  debugLogLevels = { ...debugLogLevels, ...levels };
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.DEBUG_LOG_LEVELS]: debugLogLevels });
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
+/**
+ * Get debug log levels
+ * @returns {Object}
+ */
+export function getDebugLogLevels() {
+  return { ...debugLogLevels };
+}
 
 /**
  * 格式化日志
@@ -11,6 +88,21 @@ import { LOG_PREFIX } from './constants.js';
  * @param {...any} args - 参数
  */
 export function log(level, module, ...args) {
+  // If debug logging is disabled, don't log anything
+  if (!debugLogEnabled) {
+    return;
+  }
+
+  // Check if this level is enabled
+  if (level === 'error') {
+    if (!debugLogLevels.error) return;
+  } else if (level === 'warn') {
+    if (!debugLogLevels.warn) return;
+  } else {
+    // log, debug, info are all "verbose"
+    if (!debugLogLevels.verbose) return;
+  }
+
   const prefix = `${LOG_PREFIX}[${module}]`;
   console[level](prefix, ...args);
 }

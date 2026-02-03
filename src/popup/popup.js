@@ -15,6 +15,16 @@ const SIDEPANEL_ZOOM_MIN = 60; // %
 const SIDEPANEL_ZOOM_MAX = 140; // %
 const SIDEPANEL_ZOOM_STEP = 5; // %
 
+// Debug log enabled state
+let debugLogEnabled = false;
+
+// Debug log levels
+let debugLogLevels = {
+  verbose: true,  // log, debug, info
+  warn: true,
+  error: true
+};
+
 /**
  * 加载折叠设置
  */
@@ -163,6 +173,141 @@ function createSidepanelZoomSettingsHTML() {
 }
 
 /**
+ * Load debug log enabled setting
+ */
+async function loadDebugLogSetting() {
+  try {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.DEBUG_LOG_ENABLED,
+      STORAGE_KEYS.DEBUG_LOG_LEVELS
+    ]);
+    debugLogEnabled = result[STORAGE_KEYS.DEBUG_LOG_ENABLED] === true;
+    if (result[STORAGE_KEYS.DEBUG_LOG_LEVELS]) {
+      debugLogLevels = { ...debugLogLevels, ...result[STORAGE_KEYS.DEBUG_LOG_LEVELS] };
+    }
+  } catch (e) {
+    console.warn('Failed to load debug log setting:', e);
+    debugLogEnabled = false;
+  }
+  return debugLogEnabled;
+}
+
+/**
+ * Save debug log enabled setting
+ */
+async function saveDebugLogSetting(enabled) {
+  debugLogEnabled = enabled;
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.DEBUG_LOG_ENABLED]: enabled });
+  } catch (e) {
+    console.error('Failed to save debug log setting:', e);
+  }
+}
+
+/**
+ * Save debug log levels
+ */
+async function saveDebugLogLevels() {
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.DEBUG_LOG_LEVELS]: debugLogLevels });
+  } catch (e) {
+    console.error('Failed to save debug log levels:', e);
+  }
+}
+
+/**
+ * Create debug log toggle HTML
+ */
+function createDebugLogSettingsHTML() {
+  const disabledClass = debugLogEnabled ? '' : 'setting-disabled';
+
+  return `
+    <div class="collapse-settings">
+      <h3>${i18n('debugLogTitle') || 'Developer Options'}</h3>
+
+      <div class="setting-item">
+        <label for="debug-log-enabled">
+          <input type="checkbox" id="debug-log-enabled" ${debugLogEnabled ? 'checked' : ''}>
+          ${i18n('debugLogEnabled') || 'Enable debug logging'}
+        </label>
+      </div>
+
+      <div class="setting-group ${disabledClass}" id="debug-log-levels">
+        <div class="setting-item">
+          <label for="debug-log-verbose">
+            <input type="checkbox" id="debug-log-verbose" ${debugLogLevels.verbose ? 'checked' : ''}>
+            ${i18n('debugLogVerbose') || 'Verbose (log/debug/info)'}
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label for="debug-log-warn">
+            <input type="checkbox" id="debug-log-warn" ${debugLogLevels.warn ? 'checked' : ''}>
+            ${i18n('debugLogWarn') || 'Warnings'}
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label for="debug-log-error">
+            <input type="checkbox" id="debug-log-error" ${debugLogLevels.error ? 'checked' : ''}>
+            ${i18n('debugLogError') || 'Errors'}
+          </label>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bind events for debug log toggle
+ */
+function bindDebugLogSettingsEvents() {
+  const enabledCheckbox = document.getElementById('debug-log-enabled');
+  const verboseCheckbox = document.getElementById('debug-log-verbose');
+  const warnCheckbox = document.getElementById('debug-log-warn');
+  const errorCheckbox = document.getElementById('debug-log-error');
+  const levelsGroup = document.getElementById('debug-log-levels');
+
+  if (enabledCheckbox) {
+    enabledCheckbox.addEventListener('change', async () => {
+      debugLogEnabled = enabledCheckbox.checked;
+
+      // Update disabled state of level options
+      if (levelsGroup) {
+        if (debugLogEnabled) {
+          levelsGroup.classList.remove('setting-disabled');
+        } else {
+          levelsGroup.classList.add('setting-disabled');
+        }
+      }
+
+      await saveDebugLogSetting(enabledCheckbox.checked);
+    });
+  }
+
+  if (verboseCheckbox) {
+    verboseCheckbox.addEventListener('change', async () => {
+      debugLogLevels.verbose = verboseCheckbox.checked;
+      await saveDebugLogLevels();
+    });
+  }
+
+  if (warnCheckbox) {
+    warnCheckbox.addEventListener('change', async () => {
+      debugLogLevels.warn = warnCheckbox.checked;
+      await saveDebugLogLevels();
+    });
+  }
+
+  if (errorCheckbox) {
+    errorCheckbox.addEventListener('change', async () => {
+      debugLogLevels.error = errorCheckbox.checked;
+      await saveDebugLogLevels();
+    });
+  }
+}
+
+/**
  * Bind events for sidepanel zoom settings
  */
 function bindSidepanelZoomSettingsEvents() {
@@ -308,8 +453,8 @@ async function loadStatus() {
   // Load side panel UI zoom setting
   await loadSidepanelZoom();
 
-  // Load sidepanel zoom setting
-  await loadSidepanelZoom();
+  // Load debug log setting
+  await loadDebugLogSetting();
 
   // 创建语言切换器（只创建一次）
   createLanguageSwitcher();
@@ -365,6 +510,8 @@ async function loadStatusContent() {
       statusHtml += createCollapseSettingsHTML();
       // Side panel UI zoom (always available)
       statusHtml += createSidepanelZoomSettingsHTML();
+      // Debug log toggle (always available)
+      statusHtml += createDebugLogSettingsHTML();
 
       container.innerHTML = statusHtml;
 
@@ -377,6 +524,9 @@ async function loadStatusContent() {
 
       // 绑定侧边栏缩放事件
       bindSidepanelZoomSettingsEvents();
+
+      // 绑定调试日志事件
+      bindDebugLogSettingsEvents();
 
       return;
     }
@@ -468,6 +618,8 @@ async function loadStatusContent() {
     statusHtml += createCollapseSettingsHTML();
     // Side panel UI zoom
     statusHtml += createSidepanelZoomSettingsHTML();
+    // Debug log toggle
+    statusHtml += createDebugLogSettingsHTML();
 
     container.innerHTML = statusHtml;
 
@@ -476,6 +628,9 @@ async function loadStatusContent() {
 
     // 绑定侧边栏缩放事件
     bindSidepanelZoomSettingsEvents();
+
+    // 绑定调试日志事件
+    bindDebugLogSettingsEvents();
 
     // 绑定事件
     const openSidePanelBtn = document.getElementById('open-sidepanel-btn');
