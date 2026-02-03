@@ -9,13 +9,27 @@ const isWatch = process.argv.includes('--watch');
 const isRelease = process.argv.includes('--release');
 const isDev = isWatch && !isRelease;
 
-// Release 模式下移除调试日志，只保留 error 和 warn
-const releaseDefines = isRelease ? {
-  'console.log': '(()=>{})',
-  'console.debug': '(()=>{})',
-  'console.info': '(()=>{})',
-  'debugLog': '(()=>{})',
-} : {};
+// 插件：Release 模式下移除调试日志，保留 error 和 warn
+const stripDebugLogsPlugin = {
+  name: 'strip-debug-logs',
+  setup(build) {
+    if (!isRelease) return;
+
+    build.onLoad({ filter: /\.jsx?$/ }, async (args) => {
+      const fs = await import('fs');
+      let contents = await fs.promises.readFile(args.path, 'utf8');
+
+      // 移除 console.log, console.debug, console.info（保留 error, warn）
+      // 匹配 console.log(...) 包括多行和嵌套括号
+      contents = contents.replace(/console\.(log|debug|info)\s*\([^;]*\);?/g, '');
+
+      return {
+        contents,
+        loader: args.path.endsWith('.jsx') ? 'jsx' : 'js'
+      };
+    });
+  }
+};
 
 const commonOptions = {
   bundle: true,
@@ -24,9 +38,9 @@ const commonOptions = {
   target: ['chrome115'],
   sourcemap: isDev ? 'inline' : false,
   minify: isRelease,
+  plugins: [stripDebugLogsPlugin],
   define: {
     'process.env.NODE_ENV': isDev ? '"development"' : '"production"',
-    ...releaseDefines
   },
   logLevel: 'info'
 };

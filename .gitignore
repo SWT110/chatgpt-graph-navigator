@@ -33,5 +33,6 @@ npm-debug.log*
 debug/
 docs/auto-generated
 docs/wiki
+release/
 
 AGENTS.md
