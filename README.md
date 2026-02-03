@@ -12,6 +12,14 @@
   <img alt="XYFlow" src="https://img.shields.io/badge/XYFlow-React%20Flow-111827" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Lang-English-lightgrey.svg?style=flat-square" alt="English" />
+  &nbsp;
+  <a href="./README_ZH.md">
+    <img src="https://img.shields.io/badge/Lang-简体中文-blue.svg?style=flat-square" alt="简体中文" />
+  </a>
+</p>
+
 <table>
   <tr>
     <td align="center" width="200">
@@ -141,11 +149,10 @@ We are continuously optimizing the details to improve your efficiency.
 <h2 id="installation">📥 Installation</h2>
 
 ### Option 1: Load Unpacked (For Developers & Early Adopters)
-1.  **Download:** Clone this repository or download the latest [Release](https://github.com/Robbings/chatgpt-graph-navigator/releases).
-2.  **Unzip:** Extract the downloaded file.
-3.  **Open Chrome Extensions:** Go to `chrome://extensions/` in your browser.
-4.  **Enable Developer Mode:** Toggle the switch in the top-right corner.
-5.  **Load:** Click **"Load unpacked"** and select the `dist` (or `build`) folder from your downloaded files.
+1.  **Download:** Download the latest [Release](https://github.com/Robbings/chatgpt-graph-navigator/releases).
+2.  **Open Chrome Extensions:** Enter `chrome://extensions/` in your browser address bar and press Enter.
+3.  **Enable Developer Mode:** Toggle the switch in the top-right corner.
+4.  **Load:** Click the **"Load unpacked"** button and select the downloaded file.
 
 ### Option 2: Chrome Web Store (Recommended)
 > 🚧 **Coming Soon:** We are currently reviewing our submission to the Chrome Web Store. Stay tuned!
@@ -225,9 +232,9 @@ Here is a quick overview of the codebase to help you navigate:
 We have exciting plans to turn this tool into a comprehensive Knowledge Management System for AI conversations.
 
 #### ✅ Completed
-- [x] **Core:** Interactive Graph View & Git-Style Timeline.
-- [x] **UI:** Integrated Sidebar & Floating Window modes.
-- [x] **Utils:** Message auto-folding for clean workspace.
+- [√] **Core:** Interactive Graph View & Git-Style Timeline.
+- [√] **UI:** Integrated Sidebar & Floating Window modes.
+- [√] **Utils:** Message auto-folding for clean workspace.
 
 #### 🚧 In Progress & Planned
 
