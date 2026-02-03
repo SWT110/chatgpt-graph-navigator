@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-graph-extension",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "description": "Visualize ChatGPT conversations as navigable knowledge graphs in a Chrome extension.",
   "type": "module",
   "scripts": {

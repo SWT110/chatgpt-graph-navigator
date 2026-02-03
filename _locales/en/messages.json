@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Visualize ChatGPT conversations as navigable knowledge graphs in a Chrome extension.",
+    "message": "Transform ChatGPT into a navigable knowledge graph. Visualize complex branches with the spatial Graph View, manage history via the Git-style Timeline Tree, and enjoy a growing toolkit of workflow utilities.",
     "description": "Extension description"
   },
   "extDefaultTitle": {
@@ -16,7 +16,7 @@
     "message": "ChatGPT Graph - Debug Panel"
   },
   "debugPanelSubtitle": {
-    "message": "Debug Panel - V0.1"
+    "message": "Debug Panel - V0.6"
   },
   "statusSection": {
     "message": "Status"
@@ -76,7 +76,7 @@
     "message": "[System] Logs cleared"
   },
   "footerVersion": {
-    "message": "ChatGPT Graph Extension - Version 0.1.0"
+    "message": "ChatGPT Graph Extension - Version 0.6.0"
   },
   "untitled": {
     "message": "Untitled"

@@ -516,7 +516,7 @@ async function main() {
 
   // 检查是否在对话页面
   if (!isConversationPage()) {
-    log('warn', 'Content', 'Not a conversation page, skipping');
+    log('debug', 'Content', 'Not a conversation page, skipping');
     return;
   }
 

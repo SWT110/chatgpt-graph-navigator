@@ -68,6 +68,18 @@ const builds = [
     entryPoints: ['src/background/index.js'],
     outfile: 'dist/background.js'
   },
+  // Popup (不需要 React)
+  {
+    ...commonOptions,
+    entryPoints: ['src/popup/popup.js'],
+    outfile: 'dist/popup.js'
+  },
+  // Setup Page (不需要 React)
+  {
+    ...commonOptions,
+    entryPoints: ['src/setup/setup.js'],
+    outfile: 'dist/setup.js'
+  },
   // Side Panel (使用 React)
   {
     ...reactOptions,

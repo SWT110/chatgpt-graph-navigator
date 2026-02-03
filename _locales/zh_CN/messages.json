@@ -4,7 +4,7 @@
     "description": "扩展名称"
   },
   "extDescription": {
-    "message": "在 Chrome 扩展中将 ChatGPT 对话可视化为可导航的知识图谱。",
+    "message": "将 ChatGPT 转化为可导航的知识图谱。利用图谱视图可视化复杂分支，通过 Git 风格的时间线树管理历史记录，并将不断实现丰富的实用功能。",
     "description": "扩展描述"
   },
   "extDefaultTitle": {
@@ -16,7 +16,7 @@
     "message": "ChatGPT Graph - 调试面板"
   },
   "debugPanelSubtitle": {
-    "message": "调试面板 - V0.1"
+    "message": "调试面板 - V0.6"
   },
   "statusSection": {
     "message": "状态"
@@ -76,7 +76,7 @@
     "message": "[系统] 日志已清空"
   },
   "footerVersion": {
-    "message": "ChatGPT Graph 扩展 - 版本 0.1.0"
+    "message": "ChatGPT Graph 扩展 - 版本 0.6.0"
   },
   "untitled": {
     "message": "无标题"
