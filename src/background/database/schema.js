@@ -3,7 +3,9 @@
  */
 
 export const DB_NAME = 'ChatGPTGraphDB';
-export const DB_VERSION = 4;  // 增加版本号以触发升级（添加 edges 表）
+// Keep the hotfix branch forward-compatible with the backup feature branch.
+// The browser may already contain a v5 database with the backup store.
+export const DB_VERSION = 5;  // v5: add conversation_backups store
 
 /**
  * 对象存储定义
@@ -53,6 +55,17 @@ export const OBJECT_STORES = {
     keyPath: 'id',
     indexes: [
       { name: 'conversationId', keyPath: 'conversationId', unique: false }
+    ]
+  },
+
+  // 对话备份表（存储原始 API JSON）
+  conversation_backups: {
+    keyPath: 'conversation_id',
+    indexes: [
+      { name: 'title', keyPath: 'title', unique: false },
+      { name: 'create_time', keyPath: 'create_time', unique: false },
+      { name: 'update_time', keyPath: 'update_time', unique: false },
+      { name: 'backup_time', keyPath: 'backup_time', unique: false }
     ]
   }
 };
