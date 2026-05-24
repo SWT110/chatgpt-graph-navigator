@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.6.0",
+  "version": "0.6.2",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "icons": {
@@ -39,7 +39,8 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "dist/content.js"
+        "dist/content.js",
+        "dist/content-enhancer.js"
       ],
       "run_at": "document_idle"
     }
@@ -53,7 +54,9 @@
         "assets/*",
         "src/sidepanel/index.html",
         "dist/sidepanel.js",
-        "dist/sidepanel.css"
+        "dist/sidepanel.css",
+        "dist/sidepanel-enhancer.js",
+        "dist/sidepanel-enhancer.css"
       ],
       "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
     }
